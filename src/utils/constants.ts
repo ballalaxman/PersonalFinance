@@ -1,0 +1,112 @@
+export const DEFAULT_CATEGORIES = [
+  'Housing',
+  'Groceries',
+  'Shopping',
+  'Dining',
+  'Transportation',
+  'Utilities',
+  'Subscriptions',
+  'Insurance',
+  'Health',
+  'Entertainment',
+  'Income',
+  'Needs review',
+  'Other',
+] as const
+
+export const DEFAULT_ACCOUNTS = [
+  'Main Checking',
+  'Everyday Visa',
+  'Rewards Card',
+  'Cash',
+] as const
+
+export const CATEGORY_COLORS: Record<string, string> = {
+  Housing: '#6558D3',
+  Groceries: '#10b981',
+  Shopping: '#f59e0b',
+  Dining: '#ef4444',
+  Transportation: '#3b82f6',
+  Utilities: '#8b5cf6',
+  Subscriptions: '#ec4899',
+  Insurance: '#06b6d4',
+  Health: '#84cc16',
+  Entertainment: '#f97316',
+  Income: '#22c55e',
+  'Needs review': '#94a3b8',
+  Other: '#64748b',
+}
+
+export const CHART_COLORS = [
+  '#6558D3',
+  '#10b981',
+  '#f59e0b',
+  '#ef4444',
+  '#3b82f6',
+  '#ec4899',
+  '#06b6d4',
+  '#84cc16',
+  '#f97316',
+  '#8b5cf6',
+  '#22c55e',
+  '#94a3b8',
+]
+
+export const MAX_FILE_SIZE_MB = 20
+export const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
+
+export const SUPPORTED_DOCUMENT_TYPES = [
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'text/csv',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+]
+
+export const SUBSCRIPTION_MERCHANT_HINTS = [
+  'netflix',
+  'spotify',
+  'hulu',
+  'disney',
+  'youtube',
+  'icloud',
+  'dropbox',
+  'adobe',
+  'microsoft',
+  'amazon prime',
+  'patreon',
+  'membership',
+  'studio',
+  'gym',
+  'openai',
+  'chatgpt',
+  'canva',
+  'notion',
+  'zoom',
+  'slack',
+  'github',
+]
+
+export const RECURRING_MERCHANT_HINTS = [
+  'mortgage',
+  'rent',
+  'loan',
+  'insurance',
+  'utility',
+  'utilities',
+  'electric',
+  'water',
+  'internet',
+  'phone',
+  'mobile',
+  'daycare',
+  'tuition',
+  'lease',
+  'car payment',
+  'auto payment',
+  'hoa',
+  'property tax',
+]
