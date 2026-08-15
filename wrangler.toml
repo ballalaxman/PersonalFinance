@@ -7,7 +7,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "fintrack-db"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "039a6e44-96db-4b68-a8ae-cd94b634243a"
 
 # ─── R2 bucket ──────────────────────────────────────────────────────────────
 [[r2_buckets]]
@@ -16,10 +16,8 @@ bucket_name = "fintrack-files"
 # preview_bucket_name = "fintrack-files-preview"
 
 # ─── Secrets ────────────────────────────────────────────────────────────────
-# For local dev only — set a real secret in production with:
-#   wrangler secret put JWT_SECRET
-[vars]
-JWT_SECRET = "change-me-in-production-use-wrangler-secret-put"
+# Production secret is stored securely using:
+# wrangler secret put JWT_SECRET
 
 # ─── Local development ──────────────────────────────────────────────────────
 [dev]
