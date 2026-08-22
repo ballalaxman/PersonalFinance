@@ -23,6 +23,10 @@ not_found_handling = "single-page-application"
 # ─── Secrets ────────────────────────────────────────────────────────────────
 # Production secret is stored securely using:
 # wrangler secret put JWT_SECRET
+# Set APP_ORIGIN to the exact production frontend origin.
+
+[vars]
+APP_ORIGIN = "http://localhost:5173"
 
 # ─── Local development ──────────────────────────────────────────────────────
 [dev]
@@ -32,3 +36,8 @@ local_protocol = "http"
 # ─── Observability ──────────────────────────────────────────────────────────
 [observability]
 enabled = true
+
+# One shared scheduler processes due recurring items for every user. Due dates
+# are evaluated using each user's saved IANA timezone.
+[triggers]
+crons = ["*/15 * * * *"]

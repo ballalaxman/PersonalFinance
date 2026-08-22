@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Upload, FileText, Trash2, ExternalLink, RefreshCw, Clock, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Upload, FileText, Trash2, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -17,8 +17,6 @@ export default function Documents() {
   const [uploadError, setUploadError] = useState<string | null>(null)
 
   const documents = state?.documents ?? []
-  const driveSync = state?.settings.driveSync
-  const driveFolder = state?.settings.driveFolder
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
@@ -28,6 +26,11 @@ export default function Documents() {
     const oversized = files.filter((f) => f.size > MAX_FILE_SIZE_BYTES)
     if (oversized.length > 0) {
       setUploadError(`Files must be under ${MAX_FILE_SIZE_MB} MB: ${oversized.map((f) => f.name).join(', ')}`)
+      return
+    }
+    const unsupported = files.filter((file) => !SUPPORTED_DOCUMENT_TYPES.includes(file.type))
+    if (unsupported.length > 0) {
+      setUploadError(`Unsupported file type: ${unsupported.map((file) => file.name).join(', ')}`)
       return
     }
 
@@ -105,6 +108,7 @@ export default function Documents() {
               <input
                 type="file"
                 multiple
+                accept={SUPPORTED_DOCUMENT_TYPES.join(',')}
                 onChange={handleUpload}
                 className="sr-only"
                 aria-label="Upload document files"
@@ -113,46 +117,6 @@ export default function Documents() {
           </CardContent>
         </Card>
 
-        {/* Drive inbox card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <RefreshCw className="h-4 w-4 text-blue-600" aria-hidden="true" />
-              Google Drive inbox
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {driveFolder ? (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium">{driveFolder.name}</p>
-                  <Badge variant="info">Active</Badge>
-                </div>
-                <a
-                  href={driveFolder.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-violet-600 hover:underline"
-                >
-                  Open folder
-                  <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                </a>
-                {driveSync?.lastSyncedAt && (
-                  <p className="text-xs text-muted-foreground">
-                    Last sync: {formatDate(driveSync.lastSyncedAt.split('T')[0])}
-                    {driveSync.imported !== undefined && ` · ${driveSync.imported} imported`}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Drive folder not configured. Add files to{' '}
-                <strong>FinTrack Financial Inbox</strong> in Google Drive and they will sync at
-                8:00 AM daily.
-              </p>
-            )}
-          </CardContent>
-        </Card>
       </div>
 
       {/* Document vault */}
@@ -166,7 +130,7 @@ export default function Documents() {
               <EmptyState
                 icon={<FileText className="h-6 w-6" aria-hidden="true" />}
                 title="No documents yet"
-                description="Upload a file or add one to your Drive inbox."
+                description="Upload a receipt, statement, or invoice."
                 className="border-0"
               />
             </div>

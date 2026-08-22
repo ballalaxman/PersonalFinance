@@ -1,32 +1,12 @@
 import React from 'react'
-import { ChevronDown } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
-import { PERIOD_OPTIONS } from '@/utils/dates'
-import type { DatePeriod } from '@/types'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/Select'
+import { currentMonth } from '@/utils/dates'
 
 export function PeriodSelector() {
-  const { state, setPeriod } = useAppStore()
-  const period = state?.settings.selectedPeriod ?? 'all-time'
+  const { state, setMonth } = useAppStore()
+  const month = state?.settings.selectedMonth ?? currentMonth()
 
   return (
-    <Select value={period} onValueChange={(v) => setPeriod(v as DatePeriod)}>
-      <SelectTrigger className="w-44" aria-label="Select date period">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {PERIOD_OPTIONS.map(({ value, label }) => (
-          <SelectItem key={value} value={value}>
-            {label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <input type="month" value={month} onChange={(event) => setMonth(event.target.value)} className="h-10 w-44 rounded-lg border border-input bg-background px-3 text-sm" aria-label="Select month and year" />
   )
 }

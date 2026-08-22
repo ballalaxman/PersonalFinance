@@ -126,7 +126,7 @@ export default function Rules() {
             <div className="p-5">
               <EmptyState
                 title="No rules yet"
-                description="Rules apply to future imports. They match merchant names and set categories or tags."
+                description="Rules apply to future transactions. They match merchant names and set categories or tags."
                 className="border-0"
               />
             </div>

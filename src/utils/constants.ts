@@ -10,6 +10,14 @@ export const DEFAULT_CATEGORIES = [
   'Health',
   'Entertainment',
   'Income',
+  'Mutual Fund SIP',
+  'EPF',
+  'PPF',
+  'Stocks',
+  'Fixed Deposit',
+  'Bonds',
+  'Investment Income',
+  'Other Investment',
   'Needs review',
   'Other',
 ] as const
@@ -33,6 +41,14 @@ export const CATEGORY_COLORS: Record<string, string> = {
   Health: '#84cc16',
   Entertainment: '#f97316',
   Income: '#22c55e',
+  'Mutual Fund SIP': '#2563eb',
+  EPF: '#0891b2',
+  PPF: '#0d9488',
+  Stocks: '#4f46e5',
+  'Fixed Deposit': '#0284c7',
+  Bonds: '#7c3aed',
+  'Investment Income': '#16a34a',
+  'Other Investment': '#475569',
   'Needs review': '#94a3b8',
   Other: '#64748b',
 }
@@ -61,9 +77,6 @@ export const SUPPORTED_DOCUMENT_TYPES = [
   'image/png',
   'image/webp',
   'image/gif',
-  'text/csv',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ]
 
 export const SUBSCRIPTION_MERCHANT_HINTS = [

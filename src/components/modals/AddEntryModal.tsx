@@ -71,6 +71,7 @@ export function AddEntryModal({ open, onClose }: AddEntryModalProps) {
         receiptFile: receiptFile ?? undefined,
       })
       addTransaction(transaction)
+      window.dispatchEvent(new Event('fintrack:transactions-changed'))
       toast.success('Transaction added')
       handleClose()
     } catch (err) {
@@ -114,7 +115,7 @@ export function AddEntryModal({ open, onClose }: AddEntryModalProps) {
               control={control}
               render={({ field }) => (
                 <div className="flex rounded-lg border border-input overflow-hidden" role="group" aria-label="Transaction type">
-                  {(['expense', 'income'] as const).map((t) => (
+                  {(['expense', 'income', 'investment'] as const).map((t) => (
                     <button
                       key={t}
                       type="button"
@@ -123,12 +124,14 @@ export function AddEntryModal({ open, onClose }: AddEntryModalProps) {
                         field.value === t
                           ? t === 'expense'
                             ? 'bg-red-50 text-red-700 border-b-2 border-red-500'
-                            : 'bg-emerald-50 text-emerald-700 border-b-2 border-emerald-500'
+                            : t === 'investment'
+                              ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-500'
+                              : 'bg-emerald-50 text-emerald-700 border-b-2 border-emerald-500'
                           : 'bg-background text-muted-foreground hover:bg-muted'
                       }`}
                       aria-pressed={field.value === t}
                     >
-                      {t}
+                      {t === 'investment' ? 'Savings / Investment' : t}
                     </button>
                   ))}
                 </div>

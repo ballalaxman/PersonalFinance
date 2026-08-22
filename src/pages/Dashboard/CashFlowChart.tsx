@@ -9,48 +9,26 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts'
-import { format, parseISO, startOfMonth, isValid } from 'date-fns'
-import type { Transaction } from '@/types'
+import { format, parseISO } from 'date-fns'
 import { formatCurrency } from '@/utils/currency'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { TrendingUp } from 'lucide-react'
 
 interface CashFlowChartProps {
-  transactions: Transaction[]
+  points: { date: string; income: number; expenses: number; investments: number }[]
 }
 
-export function CashFlowChart({ transactions }: CashFlowChartProps) {
+export function CashFlowChart({ points }: CashFlowChartProps) {
   const data = useMemo(() => {
-    if (!transactions.length) return []
-
-    // Group by month (last 7 months max)
-    const monthMap: Record<string, { income: number; expenses: number }> = {}
-
-    for (const t of transactions) {
-      const d = parseISO(t.date)
-      if (!isValid(d)) continue
-      const key = format(startOfMonth(d), 'yyyy-MM')
-      if (!monthMap[key]) monthMap[key] = { income: 0, expenses: 0 }
-      if (t.type === 'income') monthMap[key].income += t.amount
-      else monthMap[key].expenses += t.amount
-    }
-
-    return Object.entries(monthMap)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-7)
-      .map(([key, vals]) => ({
-        month: format(parseISO(`${key}-01`), 'MMM yy'),
-        income: Math.round(vals.income * 100) / 100,
-        expenses: Math.round(vals.expenses * 100) / 100,
-      }))
-  }, [transactions])
+    return points.map((point) => ({ ...point, month: format(parseISO(point.date), 'd MMM') }))
+  }, [points])
 
   if (!data.length) {
     return (
       <EmptyState
         icon={<TrendingUp className="h-6 w-6" aria-hidden="true" />}
         title="No cash flow data"
-        description="Import or add transactions to see cash flow."
+        description="Add transactions to see cash flow."
         className="border-0 py-8"
       />
     )
@@ -86,7 +64,7 @@ export function CashFlowChart({ transactions }: CashFlowChartProps) {
         <Tooltip
           formatter={(value: number, name: string) => [
             formatCurrency(value),
-            name === 'income' ? 'Income' : 'Expenses',
+            name === 'income' ? 'Income' : name === 'investments' ? 'Investments' : 'Expenses',
           ]}
           contentStyle={{
             borderRadius: '12px',
@@ -95,7 +73,7 @@ export function CashFlowChart({ transactions }: CashFlowChartProps) {
           }}
         />
         <Legend
-          formatter={(value) => (value === 'income' ? 'Income' : 'Expenses')}
+          formatter={(value) => (value === 'income' ? 'Income' : value === 'investments' ? 'Investments' : 'Expenses')}
           wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }}
         />
         <Area
@@ -104,6 +82,13 @@ export function CashFlowChart({ transactions }: CashFlowChartProps) {
           stroke="#10b981"
           strokeWidth={2}
           fill="url(#incomeGrad)"
+        />
+        <Area
+          type="monotone"
+          dataKey="investments"
+          stroke="#2563eb"
+          strokeWidth={2}
+          fillOpacity={0}
         />
         <Area
           type="monotone"

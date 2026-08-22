@@ -15,7 +15,6 @@ import RegisterPage from '@/pages/Auth/RegisterPage'
 const Dashboard      = lazy(() => import('@/pages/Dashboard/Dashboard'))
 const Transactions   = lazy(() => import('@/pages/Transactions/Transactions'))
 const Recurring      = lazy(() => import('@/pages/Recurring/Recurring'))
-const Subscriptions  = lazy(() => import('@/pages/Subscriptions/Subscriptions'))
 const Budgets        = lazy(() => import('@/pages/Budgets/Budgets'))
 const Goals          = lazy(() => import('@/pages/Goals/Goals'))
 const Documents      = lazy(() => import('@/pages/Documents/Documents'))
@@ -110,7 +109,7 @@ export default function App() {
             <Route index element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
             <Route path="transactions"  element={<Suspense fallback={<PageLoader />}><Transactions /></Suspense>} />
             <Route path="recurring"     element={<Suspense fallback={<PageLoader />}><Recurring /></Suspense>} />
-            <Route path="subscriptions" element={<Suspense fallback={<PageLoader />}><Subscriptions /></Suspense>} />
+            <Route path="subscriptions" element={<Navigate to="/recurring" replace />} />
             <Route path="budgets"       element={<Suspense fallback={<PageLoader />}><Budgets /></Suspense>} />
             <Route path="goals"         element={<Suspense fallback={<PageLoader />}><Goals /></Suspense>} />
             <Route path="documents"     element={<Suspense fallback={<PageLoader />}><Documents /></Suspense>} />

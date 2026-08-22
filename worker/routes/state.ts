@@ -1,6 +1,8 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
+import { serializeTransaction } from '../utils/transactions'
 import { getSettings, initEmptyState, upsertSettings } from '../utils/settings'
+import { migrateLegacyRecurringSettings } from '../utils/legacyMigration'
 
 export const stateRoutes = new Hono<{ Bindings: Env }>()
 
@@ -9,10 +11,11 @@ export const stateRoutes = new Hono<{ Bindings: Env }>()
 stateRoutes.get('/', async (c) => {
   const { id: userId } = c.get('user' as never) as { id: string }
   const db = c.env.DB
+  await migrateLegacyRecurringSettings(db, userId)
 
-  const [txResult, tagResult, ruleResult, docResult, settings] = await Promise.all([
+  const [txResult, tagResult, ruleResult, docResult, scheduleResult, occurrenceResult, settings] = await Promise.all([
     db
-      .prepare('SELECT * FROM transactions WHERE userId = ?1 ORDER BY date DESC, createdAt DESC LIMIT 5000')
+      .prepare('SELECT * FROM transactions WHERE userId = ?1 ORDER BY date DESC, createdAt DESC LIMIT 50')
       .bind(userId)
       .all<Record<string, unknown>>(),
     db
@@ -27,14 +30,18 @@ stateRoutes.get('/', async (c) => {
       .prepare('SELECT * FROM documents WHERE userId = ?1 ORDER BY createdAt DESC LIMIT 100')
       .bind(userId)
       .all<Record<string, unknown>>(),
+    db
+      .prepare('SELECT * FROM recurring_schedules WHERE userId = ?1 ORDER BY nextDueDate ASC')
+      .bind(userId)
+      .all<Record<string, unknown>>(),
+    db
+      .prepare("SELECT o.*, s.name AS scheduleName FROM recurring_occurrences o JOIN recurring_schedules s ON s.id = o.scheduleId WHERE o.userId = ?1 AND o.status IN ('pending', 'postponed') ORDER BY COALESCE(o.postponedUntil, o.dueDate) ASC LIMIT 100")
+      .bind(userId)
+      .all<Record<string, unknown>>(),
     getSettings(db, userId),
   ])
 
-  const transactions = (txResult.results ?? []).map((t) => ({
-    ...t,
-    receipt: Boolean(t.receipt),
-    tags: (() => { try { return JSON.parse(t.tags as string) } catch { return [] } })(),
-  }))
+  const transactions = (txResult.results ?? []).map(serializeTransaction)
 
   const rules = (ruleResult.results ?? []).map((r) => ({
     ...r,
@@ -47,6 +54,9 @@ stateRoutes.get('/', async (c) => {
     rules,
     settings,
     documents: docResult.results ?? [],
+    recurringSchedules: (scheduleResult.results ?? []).map((s) => ({ ...s, active: Boolean(s.active) })),
+    recurringOccurrences: occurrenceResult.results ?? [],
+    pendingRecurringCount: (occurrenceResult.results ?? []).length,
   })
 })
 
@@ -77,6 +87,9 @@ stateRoutes.delete('/', async (c) => {
   // Delete all this user's D1 records
   // CASCADE on FK handles child rows, but we delete explicitly for clarity
   await db.batch([
+    db.prepare('DELETE FROM recurring_occurrences WHERE userId = ?1').bind(userId),
+    db.prepare('DELETE FROM recurring_schedules   WHERE userId = ?1').bind(userId),
+    db.prepare('DELETE FROM push_subscriptions    WHERE userId = ?1').bind(userId),
     db.prepare('DELETE FROM transactions WHERE userId = ?1').bind(userId),
     db.prepare('DELETE FROM documents    WHERE userId = ?1').bind(userId),
     db.prepare('DELETE FROM rules        WHERE userId = ?1').bind(userId),
@@ -99,10 +112,7 @@ stateRoutes.delete('/', async (c) => {
   await upsertSettings(db, userId, {
     freshStart: true,
     driveResetAt: ts,
-    assets: 0,
-    liabilities: 0,
-    netWorthConfigured: false,
-    selectedPeriod: 'all-time',
+    selectedPeriod: 'this-month',
   })
 
   return c.json({ success: true, driveResetAt: ts })

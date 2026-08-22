@@ -3,6 +3,7 @@ import { api } from '@/services/api'
 import { preferencesService } from '@/services/preferences'
 import type { AppState, AppSettings, DatePeriod, Transaction, Tag, Rule, Document } from '@/types'
 import { DEFAULT_CATEGORIES, DEFAULT_ACCOUNTS } from '@/utils/constants'
+import { currentMonth } from '@/utils/dates'
 import { toast } from 'sonner'
 
 interface AppStore {
@@ -10,16 +11,17 @@ interface AppStore {
   state: AppState | null
   isLoading: boolean
   error: string | null
-  isSyncing: boolean
 
   // Actions
   loadState: () => Promise<void>
   updateSettings: (patch: Partial<AppSettings>) => Promise<void>
   setPeriod: (period: DatePeriod) => Promise<void>
-  syncDrive: () => Promise<void>
+  setMonth: (month: string) => Promise<void>
   addTransaction: (t: Transaction) => void
   updateTransaction: (t: Transaction) => void
   removeTransaction: (id: string) => void
+  replaceTransactions: (transactions: Transaction[]) => void
+  appendTransactions: (transactions: Transaction[]) => void
   addDocument: (d: Document) => void
   removeDocument: (id: string) => void
   addTag: (tag: Tag) => void
@@ -40,14 +42,15 @@ const DEFAULT_SETTINGS: AppSettings = {
   assets: 0,
   liabilities: 0,
   netWorthConfigured: false,
-  selectedPeriod: 'all-time',
+  selectedPeriod: 'this-month',
+  selectedMonth: currentMonth(),
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata',
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
   state: null,
   isLoading: false,
   error: null,
-  isSyncing: false,
 
   loadState: async () => {
     set({ isLoading: true, error: null })
@@ -109,18 +112,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  syncDrive: async () => {
-    set({ isSyncing: true })
-    try {
-      await api.post('/api/drive-sync/trigger', {})
-      toast.success('Drive sync triggered')
-      await get().loadState()
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Drive sync failed'
-      toast.error(msg)
-    } finally {
-      set({ isSyncing: false })
-    }
+  setMonth: async (month) => {
+    if (!/^\d{4}-\d{2}$/.test(month)) return
+    await get().updateSettings({ selectedMonth: month })
   },
 
   addTransaction: (t) => {
@@ -144,6 +138,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const { state } = get()
     if (!state) return
     set({ state: { ...state, transactions: state.transactions.filter((t) => t.id !== id) } })
+  },
+
+  replaceTransactions: (transactions) => {
+    const { state } = get()
+    if (state) set({ state: { ...state, transactions } })
+  },
+
+  appendTransactions: (transactions) => {
+    const { state } = get()
+    if (!state) return
+    const known = new Set(state.transactions.map((t) => t.id))
+    set({ state: { ...state, transactions: [...state.transactions, ...transactions.filter((t) => !known.has(t.id))] } })
   },
 
   addDocument: (d) => {

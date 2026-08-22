@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react'
-import { Search, SlidersHorizontal, Tag, Receipt } from 'lucide-react'
+import React, { useEffect, useMemo, useState } from 'react'
+import { Search, Receipt, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
@@ -17,49 +17,67 @@ import { PeriodSelector } from '@/pages/Dashboard/PeriodSelector'
 import { InlineCategoryEdit } from './InlineCategoryEdit'
 import { InlineTagEdit } from './InlineTagEdit'
 import { DeleteTransactionDialog } from './DeleteTransactionDialog'
+import { TransactionEditModal } from './TransactionEditModal'
 import { useAppStore } from '@/store/appStore'
-import { filterByPeriod, formatDate } from '@/utils/dates'
+import { currentMonth, formatDate, monthDateRange } from '@/utils/dates'
 import { formatCurrency } from '@/utils/currency'
 import type { Transaction } from '@/types'
+import { transactionsService, type TransactionListQuery, type TransactionTotals } from '@/services/transactions'
 
 export default function Transactions() {
-  const { state } = useAppStore()
+  const { state, replaceTransactions, appendTransactions } = useAppStore()
   const [search, setSearch] = useState('')
   const [accountFilter, setAccountFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [typeFilter, setTypeFilter] = useState('all')
   const [deleteTarget, setDeleteTarget] = useState<Transaction | null>(null)
+  const [editTarget, setEditTarget] = useState<Transaction | null>(null)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [totals, setTotals] = useState<TransactionTotals>({ count: 0, income: 0, expense: 0, investment: 0 })
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  const period = state?.settings.selectedPeriod ?? 'all-time'
+  const month = state?.settings.selectedMonth ?? currentMonth()
+  const query = useMemo<TransactionListQuery>(() => {
+    const range = monthDateRange(month)
+    return {
+      ...range,
+      search: search.trim() || undefined,
+      account: accountFilter === 'all' ? undefined : accountFilter,
+      category: categoryFilter === 'all' ? undefined : categoryFilter,
+      type: typeFilter === 'all' ? undefined : typeFilter as Transaction['type'],
+    }
+  }, [month, search, accountFilter, categoryFilter, typeFilter])
+
+  useEffect(() => {
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      transactionsService.list(query).then((page) => {
+        if (cancelled) return
+        replaceTransactions(page.transactions)
+        setNextCursor(page.nextCursor)
+        setHasMore(page.hasMore)
+        setTotals(page.totals)
+      }).catch(() => !cancelled && toast.error('Failed to load transactions'))
+    }, search.trim() ? 250 : 0)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [query, replaceTransactions, refreshKey])
+
+  useEffect(() => {
+    const refresh = () => setRefreshKey((value) => value + 1)
+    window.addEventListener('fintrack:transactions-changed', refresh)
+    return () => window.removeEventListener('fintrack:transactions-changed', refresh)
+  }, [])
+
   const allTransactions = state?.transactions ?? []
   const categories = state?.settings.categories ?? []
   const accounts = state?.settings.accounts ?? []
 
-  const filtered = useMemo(() => {
-    let items = filterByPeriod(allTransactions, period)
-
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      items = items.filter(
-        (t) =>
-          t.merchant.toLowerCase().includes(q) ||
-          t.category.toLowerCase().includes(q) ||
-          t.tags.some((tag) => tag.toLowerCase().includes(q))
-      )
-    }
-
-    if (accountFilter !== 'all') {
-      items = items.filter((t) => t.account === accountFilter)
-    }
-
-    if (categoryFilter !== 'all') {
-      items = items.filter((t) => t.category === categoryFilter)
-    }
-
-    return items.sort((a, b) => b.date.localeCompare(a.date))
-  }, [allTransactions, period, search, accountFilter, categoryFilter])
-
-  const totalIncome = filtered.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-  const totalExpense = filtered.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+  const filtered = allTransactions
+  const totalIncome = totals.income
+  const totalExpense = totals.expense
+  const totalInvestment = totals.investment
 
   return (
     <div className="space-y-5">
@@ -67,14 +85,14 @@ export default function Transactions() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Transactions</h1>
-          <p className="text-sm text-muted-foreground">{filtered.length} records</p>
+          <p className="text-sm text-muted-foreground">{totals.count} records</p>
         </div>
         <PeriodSelector />
       </div>
 
       {/* Summary strip */}
       {filtered.length > 0 && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-xl border border-border bg-card p-3">
             <p className="text-xs text-muted-foreground">Income</p>
             <p className="text-lg font-bold text-emerald-600">{formatCurrency(totalIncome)}</p>
@@ -83,8 +101,12 @@ export default function Transactions() {
             <p className="text-xs text-muted-foreground">Spending</p>
             <p className="text-lg font-bold text-orange-500">{formatCurrency(totalExpense)}</p>
           </div>
-          <div className="col-span-2 rounded-xl border border-border bg-card p-3 sm:col-span-1">
-            <p className="text-xs text-muted-foreground">Net</p>
+          <div className="rounded-xl border border-border bg-card p-3">
+            <p className="text-xs text-muted-foreground">Invested</p>
+            <p className="text-lg font-bold text-blue-600">{formatCurrency(totalInvestment)}</p>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-3">
+            <p className="text-xs text-muted-foreground">Cash surplus</p>
             <p className={`text-lg font-bold ${totalIncome - totalExpense >= 0 ? 'text-foreground' : 'text-red-600'}`}>
               {formatCurrency(totalIncome - totalExpense)}
             </p>
@@ -130,6 +152,17 @@ export default function Transactions() {
             ))}
           </SelectContent>
         </Select>
+        <Select value={typeFilter} onValueChange={setTypeFilter}>
+          <SelectTrigger className="w-full sm:w-44" aria-label="Filter by type">
+            <SelectValue placeholder="All types" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All types</SelectItem>
+            <SelectItem value="income">Income</SelectItem>
+            <SelectItem value="expense">Expense</SelectItem>
+            <SelectItem value="investment">Savings / Investment</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Table / List */}
@@ -141,7 +174,7 @@ export default function Transactions() {
                 title={allTransactions.length === 0 ? 'No transactions yet' : 'No matching transactions'}
                 description={
                   allTransactions.length === 0
-                    ? 'Use the Add entry button or Import to get started.'
+                    ? 'Use the Add entry button to get started.'
                     : 'Try adjusting your search or filters.'
                 }
                 className="border-0"
@@ -166,6 +199,7 @@ export default function Transactions() {
                     key={t.id}
                     transaction={t}
                     categories={categories}
+                    onEdit={() => setEditTarget(t)}
                     onDelete={() => setDeleteTarget(t)}
                   />
                 ))}
@@ -175,13 +209,26 @@ export default function Transactions() {
         </CardContent>
       </Card>
 
+      {hasMore && <div className="flex justify-center"><Button variant="outline" loading={loadingMore} onClick={async () => {
+        if (!nextCursor) return
+        setLoadingMore(true)
+        try {
+          const page = await transactionsService.list({ ...query, cursor: nextCursor })
+          appendTransactions(page.transactions)
+          setNextCursor(page.nextCursor)
+          setHasMore(page.hasMore)
+        } finally { setLoadingMore(false) }
+      }}>Load more</Button></div>}
+
       {/* Delete dialog */}
       {deleteTarget && (
         <DeleteTransactionDialog
           transaction={deleteTarget}
           onClose={() => setDeleteTarget(null)}
+          onDeleted={() => setRefreshKey((value) => value + 1)}
         />
       )}
+      <TransactionEditModal transaction={editTarget} onClose={() => setEditTarget(null)} />
     </div>
   )
 }
@@ -189,10 +236,12 @@ export default function Transactions() {
 function TransactionRow({
   transaction: t,
   categories,
+  onEdit,
   onDelete,
 }: {
   transaction: Transaction
   categories: string[]
+  onEdit: () => void
   onDelete: () => void
 }) {
   return (
@@ -222,13 +271,19 @@ function TransactionRow({
         {/* Amount */}
         <p
           className={`text-sm font-semibold text-right ${
-            t.type === 'income' ? 'text-emerald-600' : 'text-foreground'
+            t.type === 'income' ? 'text-emerald-600' : t.type === 'investment' ? 'text-blue-600' : 'text-foreground'
           }`}
         >
-          {t.type === 'income' ? '+' : '−'}{formatCurrency(t.amount)}
+          {t.type === 'income' ? '+' : t.type === 'investment' ? '' : '−'}{formatCurrency(t.amount)}
         </p>
 
-        {/* Delete */}
+        <button
+          onClick={onEdit}
+          className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-violet-600 hover:bg-violet-50 transition-all"
+          aria-label={`Edit transaction ${t.merchant}`}
+        >
+          <Pencil className="h-4 w-4" aria-hidden="true" />
+        </button>
         <button
           onClick={onDelete}
           className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-50 transition-all"
@@ -255,11 +310,18 @@ function TransactionRow({
           <div className="flex items-center gap-2 flex-shrink-0">
             <p
               className={`text-sm font-semibold ${
-                t.type === 'income' ? 'text-emerald-600' : 'text-foreground'
+                t.type === 'income' ? 'text-emerald-600' : t.type === 'investment' ? 'text-blue-600' : 'text-foreground'
               }`}
             >
-              {t.type === 'income' ? '+' : '−'}{formatCurrency(t.amount)}
+              {t.type === 'income' ? '+' : t.type === 'investment' ? '' : '−'}{formatCurrency(t.amount)}
             </p>
+            <button
+              onClick={onEdit}
+              className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-violet-600 hover:bg-violet-50"
+              aria-label={`Edit ${t.merchant}`}
+            >
+              <Pencil className="h-4 w-4" aria-hidden="true" />
+            </button>
             <button
               onClick={onDelete}
               className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50"
