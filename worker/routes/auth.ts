@@ -4,8 +4,10 @@ import type { Env } from '../index'
 import { hashPassword, verifyPassword, signJWT } from '../utils/crypto'
 import { initEmptyState } from '../utils/settings'
 import { newId, now } from '../utils/id'
+import { requireAuth } from '../middleware/auth'
 
 export const authRoutes = new Hono<{ Bindings: Env }>()
+authRoutes.use('/me', requireAuth)
 
 // ─── Validation schemas ──────────────────────────────────────────────────────
 

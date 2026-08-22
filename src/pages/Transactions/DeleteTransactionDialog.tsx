@@ -18,9 +18,10 @@ import type { Transaction } from '@/types'
 interface DeleteTransactionDialogProps {
   transaction: Transaction
   onClose: () => void
+  onDeleted?: () => void
 }
 
-export function DeleteTransactionDialog({ transaction, onClose }: DeleteTransactionDialogProps) {
+export function DeleteTransactionDialog({ transaction, onClose, onDeleted }: DeleteTransactionDialogProps) {
   const { removeTransaction } = useAppStore()
   const [loading, setLoading] = useState(false)
 
@@ -30,6 +31,7 @@ export function DeleteTransactionDialog({ transaction, onClose }: DeleteTransact
       await transactionsService.delete(transaction.id)
       removeTransaction(transaction.id)
       toast.success('Transaction deleted')
+      onDeleted?.()
       onClose()
     } catch {
       toast.error('Failed to delete transaction')

@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   merchant    TEXT    NOT NULL,
   category    TEXT    NOT NULL DEFAULT 'Needs review',
   amount      REAL    NOT NULL,
-  type        TEXT    NOT NULL CHECK(type IN ('expense', 'income')),
+  type        TEXT    NOT NULL CHECK(type IN ('expense', 'income', 'investment')),
   account     TEXT    NOT NULL DEFAULT 'Imported account',
   tags        TEXT    NOT NULL DEFAULT '[]',
   receipt     INTEGER NOT NULL DEFAULT 0,
@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS transactions (
 
 CREATE INDEX IF NOT EXISTS idx_transactions_user     ON transactions(userId);
 CREATE INDEX IF NOT EXISTS idx_transactions_date     ON transactions(userId, date);
+CREATE INDEX IF NOT EXISTS idx_transactions_page     ON transactions(userId, date DESC, createdAt DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_transactions_merchant ON transactions(userId, merchant);
 CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(userId, category);
 CREATE INDEX IF NOT EXISTS idx_transactions_account  ON transactions(userId, account);
@@ -92,3 +93,67 @@ CREATE TABLE IF NOT EXISTS documents (
 );
 
 CREATE INDEX IF NOT EXISTS idx_documents_user ON documents(userId);
+
+-- Recurring schedules are normalized because each due occurrence needs its own
+-- idempotency, reconciliation, and notification state.
+CREATE TABLE IF NOT EXISTS recurring_schedules (
+  id               TEXT    PRIMARY KEY,
+  userId           TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name             TEXT    NOT NULL,
+  transactionType  TEXT    NOT NULL CHECK(transactionType IN ('expense', 'income', 'investment')),
+  category         TEXT    NOT NULL,
+  amount           REAL    NOT NULL CHECK(amount > 0),
+  account          TEXT,
+  cadence          TEXT    NOT NULL CHECK(cadence IN ('weekly', 'biweekly', 'monthly', 'quarterly', 'annual')),
+  startDate        TEXT    NOT NULL,
+  dayOfMonth       INTEGER CHECK(dayOfMonth IS NULL OR (dayOfMonth BETWEEN 1 AND 31)),
+  nextDueDate      TEXT    NOT NULL,
+  endDate          TEXT,
+  active           INTEGER NOT NULL DEFAULT 1,
+  notifyDaysBefore INTEGER NOT NULL DEFAULT 0 CHECK(notifyDaysBefore IN (0, 1, 3, 7)),
+  createdAt        TEXT    NOT NULL,
+  updatedAt        TEXT    NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_recurring_schedules_user
+  ON recurring_schedules(userId);
+CREATE INDEX IF NOT EXISTS idx_recurring_schedules_due
+  ON recurring_schedules(active, nextDueDate, userId);
+
+CREATE TABLE IF NOT EXISTS recurring_occurrences (
+  id                 TEXT PRIMARY KEY,
+  userId             TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  scheduleId         TEXT NOT NULL REFERENCES recurring_schedules(id) ON DELETE CASCADE,
+  dueDate            TEXT NOT NULL,
+  expectedAmount     REAL NOT NULL CHECK(expectedAmount > 0),
+  status             TEXT NOT NULL CHECK(status IN ('pending', 'confirmed', 'skipped', 'postponed')),
+  transactionId      TEXT REFERENCES transactions(id),
+  postponedUntil     TEXT,
+  notificationSentAt TEXT,
+  createdAt          TEXT NOT NULL,
+  resolvedAt         TEXT,
+  UNIQUE(scheduleId, dueDate)
+);
+
+CREATE INDEX IF NOT EXISTS idx_recurring_occurrences_user
+  ON recurring_occurrences(userId);
+CREATE INDEX IF NOT EXISTS idx_recurring_occurrences_schedule
+  ON recurring_occurrences(userId, scheduleId, dueDate);
+CREATE INDEX IF NOT EXISTS idx_recurring_occurrences_status
+  ON recurring_occurrences(userId, status, dueDate);
+
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id          TEXT PRIMARY KEY,
+  userId      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  endpoint    TEXT NOT NULL,
+  p256dh      TEXT NOT NULL,
+  auth        TEXT NOT NULL,
+  deviceLabel TEXT NOT NULL DEFAULT '',
+  lastFailure TEXT,
+  createdAt   TEXT NOT NULL,
+  updatedAt   TEXT NOT NULL,
+  UNIQUE(userId, endpoint)
+);
+
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user
+  ON push_subscriptions(userId);

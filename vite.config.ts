@@ -39,19 +39,12 @@ export default defineConfig({
         ]
       },
       workbox: {
+        importScripts: ['push-sw.js'],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\/api\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 5
-              },
-              networkTimeoutSeconds: 10
-            }
+            handler: 'NetworkOnly'
           }
         ]
       }

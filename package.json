@@ -14,7 +14,11 @@
     "test:e2e": "playwright test",
     "deploy": "wrangler deploy",
     "worker:dev": "wrangler dev",
-    "db:migrate": "wrangler d1 execute fintrack-db --local --file=worker/db/schema.sql"
+    "db:migrate": "wrangler d1 execute fintrack-db --local --file=worker/db/schema.sql",
+    "db:migrate:post-testing": "wrangler d1 execute fintrack-db --local --file=worker/db/migrations/0002_post_testing_foundation.sql",
+    "db:migrate:post-testing:remote": "wrangler d1 execute fintrack-db --remote --file=worker/db/migrations/0002_post_testing_foundation.sql",
+    "db:migrate:month-filtering": "wrangler d1 execute fintrack-db --local --file=worker/db/migrations/0003_month_filtering.sql",
+    "db:migrate:month-filtering:remote": "wrangler d1 execute fintrack-db --remote --file=worker/db/migrations/0003_month_filtering.sql"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -36,7 +40,6 @@
     "date-fns": "^3.6.0",
     "hono": "^4.5.3",
     "lucide-react": "^0.414.0",
-    "papaparse": "^5.4.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.52.2",
@@ -55,7 +58,6 @@
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "^14.5.2",
     "@types/node": "^22.1.0",
-    "@types/papaparse": "^5.3.14",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",

@@ -1,32 +1,25 @@
 import React, { useMemo } from 'react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
-import type { Transaction } from '@/types'
 import { formatCurrency } from '@/utils/currency'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PieChart as PieIcon } from 'lucide-react'
 import { CHART_COLORS } from '@/utils/constants'
 
 interface SpendingChartProps {
-  transactions: Transaction[]
+  categories: { category: string; amount: number }[]
 }
 
-export function SpendingChart({ transactions }: SpendingChartProps) {
+export function SpendingChart({ categories }: SpendingChartProps) {
   const data = useMemo(() => {
-    const map: Record<string, number> = {}
-    for (const t of transactions.filter((t) => t.type === 'expense')) {
-      map[t.category] = (map[t.category] ?? 0) + t.amount
-    }
-    const total = Object.values(map).reduce((s, v) => s + v, 0)
-    return Object.entries(map)
-      .sort(([, a], [, b]) => b - a)
+    const total = categories.reduce((sum, item) => sum + item.amount, 0)
+    return categories
       .slice(0, 8)
-      .map(([category, amount], i) => ({
-        category,
-        amount,
+      .map(({ category, amount }, i) => ({
+        category, amount,
         percentage: total > 0 ? (amount / total) * 100 : 0,
         color: CHART_COLORS[i % CHART_COLORS.length],
       }))
-  }, [transactions])
+  }, [categories])
 
   if (!data.length) {
     return (

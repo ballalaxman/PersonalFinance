@@ -5,6 +5,7 @@ import { newId, now, safeFilename } from '../utils/id'
 export const documentRoutes = new Hono<{ Bindings: Env }>()
 
 const MAX_SIZE = 20 * 1024 * 1024 // 20 MB
+const ALLOWED_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 
 // POST /api/documents — multipart upload
 documentRoutes.post('/', async (c) => {
@@ -25,6 +26,10 @@ documentRoutes.post('/', async (c) => {
 
     if (file.size > MAX_SIZE) {
       errors.push(`${file.name}: exceeds 20 MB limit`)
+      continue
+    }
+    if (!ALLOWED_TYPES.has(file.type)) {
+      errors.push(`${file.name}: unsupported file type`)
       continue
     }
 
@@ -50,6 +55,7 @@ documentRoutes.post('/', async (c) => {
 
       inserted.push({ id, filename: file.name, mimeType: file.type, size: file.size, objectKey, status: 'stored', source: 'upload', createdAt })
     } catch (err) {
+      await bucket.delete(objectKey).catch(() => {})
       errors.push(`${file.name}: ${err instanceof Error ? err.message : 'upload failed'}`)
     }
   }

@@ -15,9 +15,9 @@ preferencesRoutes.put('/', async (c) => {
 
   // Allowlist — prevent arbitrary writes
   const ALLOWED = new Set([
-    'categories', 'accounts', 'goals', 'budgets', 'subscriptions', 'recurring',
-    'dismissedPatterns', 'assets', 'liabilities', 'netWorthConfigured',
-    'selectedPeriod', 'driveFolder', 'driveSync', 'freshStart', 'driveResetAt',
+    'categories', 'accounts', 'goals', 'budgets',
+    'dismissedPatterns',
+    'selectedPeriod', 'selectedMonth', 'timezone', 'freshStart',
   ])
 
   const patch: Record<string, unknown> = {}

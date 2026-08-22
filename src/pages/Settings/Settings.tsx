@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IndianRupee, Tag, LayoutGrid, CreditCard, RefreshCw,
-  Trash2, ExternalLink, RotateCcw, AlertTriangle, CheckCircle2
+  Trash2, RotateCcw, AlertTriangle, Bell
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -18,6 +18,7 @@ import { useAppStore } from '@/store/appStore'
 import { formatCurrency } from '@/utils/currency'
 import { formatDate } from '@/utils/dates'
 import { api } from '@/services/api'
+import { pushService } from '@/services/push'
 
 export default function Settings() {
   const { state, updateSettings, loadState } = useAppStore()
@@ -27,6 +28,10 @@ export default function Settings() {
   const [assets, setAssets] = useState(String(settings?.assets ?? 0))
   const [liabilities, setLiabilities] = useState(String(settings?.liabilities ?? 0))
   const [savingNW, setSavingNW] = useState(false)
+  const [timezone, setTimezone] = useState(settings?.timezone ?? 'Asia/Kolkata')
+  const [notificationState, setNotificationState] = useState(
+    typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
+  )
 
   const [newCategory, setNewCategory] = useState('')
   const [newAccount, setNewAccount] = useState('')
@@ -124,8 +129,6 @@ export default function Settings() {
     }
   }
 
-  const driveSync = settings?.driveSync
-  const driveFolder = settings?.driveFolder
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -134,8 +137,8 @@ export default function Settings() {
         <p className="text-sm text-muted-foreground">Configure your FinTrack workspace</p>
       </div>
 
-      {/* Net Worth */}
-      <Card>
+      {/* Legacy net-worth controls are retained temporarily for rollback but are not rendered. */}
+      {false && <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <IndianRupee className="h-4 w-4 text-violet-600" aria-hidden="true" />
@@ -170,6 +173,34 @@ export default function Settings() {
             </span>
           </div>
           <Button onClick={handleSaveNetWorth} loading={savingNW}>Save net worth</Button>
+        </CardContent>
+      </Card>}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <RefreshCw className="h-4 w-4 text-violet-600" aria-hidden="true" />
+            Recurring schedule timezone
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">Due dates are evaluated in this IANA timezone.</p>
+          <Input
+            label="Timezone"
+            value={timezone}
+            onChange={(e) => setTimezone(e.target.value)}
+            placeholder="Asia/Kolkata"
+          />
+          <Button onClick={() => updateSettings({ timezone })}>Save timezone</Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="flex items-center gap-2"><Bell className="h-4 w-4 text-violet-600" />Recurring reminders</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">Enable privacy-safe reminders on this browser. Financial amounts and account details are never shown in notification text.</p>
+          <Badge variant={notificationState === 'granted' ? 'success' : notificationState === 'denied' ? 'warning' : 'secondary'}>{notificationState}</Badge>
+          <div className="flex gap-2"><Button onClick={async () => { try { await pushService.enable(); setNotificationState('granted'); toast.success('Recurring reminders enabled') } catch (e) { toast.error(e instanceof Error ? e.message : 'Unable to enable reminders') } }}>Enable reminders</Button><Button variant="outline" onClick={async () => { await pushService.disable(); setNotificationState(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission); toast.success('Reminders disabled on this device') }}>Disable on this device</Button></div>
         </CardContent>
       </Card>
 
@@ -278,60 +309,6 @@ export default function Settings() {
         </CardContent>
       </Card>
 
-      {/* Google Drive */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <RefreshCw className="h-4 w-4 text-blue-600" aria-hidden="true" />
-            Google Drive sync
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          {driveFolder ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <p className="font-medium">{driveFolder.name}</p>
-                <Badge variant="info">Configured</Badge>
-              </div>
-              <a
-                href={driveFolder.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-violet-600 hover:underline"
-              >
-                Open folder <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-              </a>
-            </div>
-          ) : (
-            <p className="text-muted-foreground">Drive folder not configured yet.</p>
-          )}
-
-          {driveSync && (
-            <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
-              {[
-                { label: 'Last sync', value: driveSync.lastSyncedAt ? formatDate(driveSync.lastSyncedAt.split('T')[0]) : 'Never' },
-                { label: 'Status', value: driveSync.status ?? 'idle' },
-                { label: 'Imported', value: driveSync.imported },
-                { label: 'Duplicates', value: driveSync.duplicates },
-                { label: 'Files stored', value: driveSync.filesStored },
-                { label: 'Needs review', value: driveSync.filesReview },
-              ].map(({ label, value }) => (
-                <div key={label} className="rounded-lg bg-muted p-2">
-                  <p className="text-muted-foreground">{label}</p>
-                  <p className="font-medium capitalize">{String(value)}</p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs text-blue-800">
-            Add receipts, CSVs, statements, or invoices to your{' '}
-            <strong>FinTrack Financial Inbox</strong> folder in Google Drive. The daily 8:00 AM
-            automation will import new files automatically.
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Danger zone */}
       <Card className="border-red-200">
         <CardHeader>
@@ -343,7 +320,7 @@ export default function Settings() {
         <CardContent>
           <p className="mb-3 text-sm text-muted-foreground">
             Permanently delete all transactions, documents, rules, tags, budgets, goals, and
-            settings from FinTrack. Your Google Drive files will not be deleted.
+            settings from FinTrack. Files stored outside FinTrack are not affected.
           </p>
           <Button variant="destructive" onClick={() => setWipeOpen(true)}>
             <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -369,7 +346,7 @@ export default function Settings() {
                 <li>All settings</li>
               </ul>
               <p className="font-medium text-foreground">
-                Your Google Drive files will remain untouched.
+                Files stored outside FINTRACK will remain untouched.
               </p>
               <p>Type <strong>DELETE</strong> to confirm:</p>
             </DialogDescription>

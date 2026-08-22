@@ -85,6 +85,21 @@ export function today(): string {
   return format(new Date(), 'yyyy-MM-dd')
 }
 
+/** Current month in the browser's local timezone, formatted as YYYY-MM. */
+export function currentMonth(): string {
+  return format(new Date(), 'yyyy-MM')
+}
+
+export function monthDateRange(month: string): { startDate: string; endDate: string } {
+  const match = /^(\d{4})-(\d{2})$/.exec(month)
+  if (!match) throw new Error('Invalid month')
+  const year = Number(match[1])
+  const monthNumber = Number(match[2])
+  if (monthNumber < 1 || monthNumber > 12) throw new Error('Invalid month')
+  const lastDay = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate()
+  return { startDate: `${match[1]}-${match[2]}-01`, endDate: `${match[1]}-${match[2]}-${String(lastDay).padStart(2, '0')}` }
+}
+
 /**
  * Get human-readable label for a period.
  */

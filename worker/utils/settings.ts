@@ -5,6 +5,8 @@ const DEFAULT_SETTINGS = {
     'Housing', 'Groceries', 'Shopping', 'Dining', 'Transportation',
     'Utilities', 'Subscriptions', 'Insurance', 'Health', 'Entertainment',
     'Income', 'Needs review', 'Other',
+    'Mutual Fund SIP', 'EPF', 'PPF', 'Stocks', 'Fixed Deposit', 'Bonds',
+    'Investment Income', 'Other Investment',
   ],
   accounts: ['Main Checking', 'Everyday Visa', 'Rewards Card', 'Cash'],
   goals: [],
@@ -15,7 +17,8 @@ const DEFAULT_SETTINGS = {
   assets: 0,
   liabilities: 0,
   netWorthConfigured: false,
-  selectedPeriod: 'all-time',
+  selectedPeriod: 'this-month',
+  timezone: 'Asia/Kolkata',
 }
 
 /**
@@ -79,6 +82,7 @@ export async function initEmptyState(db: D1Database, userId: string): Promise<vo
     assets: 0,
     liabilities: 0,
     netWorthConfigured: false,
-    selectedPeriod: 'all-time',
+    selectedPeriod: 'this-month',
+    timezone: DEFAULT_SETTINGS.timezone,
   })
 }

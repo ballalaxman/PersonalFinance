@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   TrendingUp,
@@ -17,69 +17,59 @@ import { PeriodSelector } from './PeriodSelector'
 import { CashFlowChart } from './CashFlowChart'
 import { SpendingChart } from './SpendingChart'
 import { useAppStore } from '@/store/appStore'
-import { filterByPeriod, formatDate } from '@/utils/dates'
+import { currentMonth, formatDate, monthDateRange } from '@/utils/dates'
 import { formatCurrency, calcSavingsRate } from '@/utils/currency'
 import type { Transaction } from '@/types'
 import { CATEGORY_COLORS } from '@/utils/constants'
+import { dashboardService, type DashboardData } from '@/services/dashboard'
 
 export default function Dashboard() {
   const { state } = useAppStore()
+  const month = state?.settings.selectedMonth ?? currentMonth()
+  const [data, setData] = useState<DashboardData>({ summary: { count: 0, incomeCount: 0, expenseCount: 0, needsReviewCount: 0, income: 0, expense: 0, investment: 0 }, daily: [], categories: [], recent: [] })
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  const period = state?.settings.selectedPeriod ?? 'all-time'
-  const allTransactions = state?.transactions ?? []
+  useEffect(() => {
+    let cancelled = false
+    const range = monthDateRange(month)
+    dashboardService.get(range.startDate, range.endDate).then((result) => !cancelled && setData(result)).catch(() => !cancelled && setData({ summary: { count: 0, incomeCount: 0, expenseCount: 0, needsReviewCount: 0, income: 0, expense: 0, investment: 0 }, daily: [], categories: [], recent: [] }))
+    return () => { cancelled = true }
+  }, [month, refreshKey])
 
-  const filtered = useMemo(
-    () => filterByPeriod(allTransactions, period),
-    [allTransactions, period]
-  )
+  useEffect(() => {
+    const refresh = () => setRefreshKey((value) => value + 1)
+    window.addEventListener('fintrack:transactions-changed', refresh)
+    return () => window.removeEventListener('fintrack:transactions-changed', refresh)
+  }, [])
 
-  const income = useMemo(
-    () => filtered.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0),
-    [filtered]
-  )
-  const spending = useMemo(
-    () => filtered.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0),
-    [filtered]
-  )
+  const income = data.summary.income
+  const spending = data.summary.expense
   const savingsRate = calcSavingsRate(income, spending)
 
-  const netWorthConfigured = state?.settings.netWorthConfigured ?? false
-  const assets = state?.settings.assets ?? 0
-  const liabilities = state?.settings.liabilities ?? 0
-  const netWorth = assets - liabilities
+  const investments = data.summary.investment
+  const cashSurplus = income - spending
+  const unallocatedSavings = cashSurplus - investments
+  const investmentRate = income > 0 ? (investments / income) * 100 : 0
+  const netWorthConfigured = true
+  const assets = income
+  const liabilities = spending
+  const netWorth = cashSurplus
 
-  const recentActivity = useMemo(
-    () => [...filtered].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5),
-    [filtered]
-  )
-
-  const needsReviewCount = filtered.filter((t) => t.category === 'Needs review').length
+  const recentActivity = data.recent
+  const needsReviewCount = data.summary.needsReviewCount
 
   // Category spending for insight
-  const topCategory = useMemo(() => {
-    if (!filtered.length) return null
-    const map: Record<string, number> = {}
-    for (const t of filtered.filter((t) => t.type === 'expense')) {
-      map[t.category] = (map[t.category] ?? 0) + t.amount
-    }
-    const entries = Object.entries(map).sort((a, b) => b[1] - a[1])
-    return entries[0] ?? null
-  }, [filtered])
+  const topCategory = data.categories[0] ?? null
 
   // Upcoming confirmed recurring
   const upcomingRecurring = useMemo(() => {
-    const recurring = state?.settings.recurring ?? []
-    const subs = state?.settings.subscriptions ?? []
-    const all = [
-      ...recurring.filter((r) => r.active),
-      ...subs.filter((s) => s.active),
-    ]
+    const all = (state?.recurringSchedules ?? []).filter((r) => r.active)
     const today = new Date().toISOString().split('T')[0]
     return all
-      .filter((r) => r.nextDate >= today)
-      .sort((a, b) => a.nextDate.localeCompare(b.nextDate))
+      .filter((r) => r.nextDueDate >= today)
+      .sort((a, b) => a.nextDueDate.localeCompare(b.nextDueDate))
       .slice(0, 3)
-  }, [state?.settings.recurring, state?.settings.subscriptions])
+  }, [state?.recurringSchedules])
 
   return (
     <div className="space-y-6">
@@ -96,7 +86,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {/* Net Worth */}
         <SummaryCard
-          title="Net Worth"
+          title="Cash surplus"
           icon={<PiggyBank className="h-5 w-5 text-violet-600" aria-hidden="true" />}
           iconBg="bg-violet-50"
         >
@@ -106,7 +96,7 @@ export default function Dashboard() {
                 {formatCurrency(netWorth)}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Assets {formatCurrency(assets)} − Liabilities {formatCurrency(liabilities)}
+                Income {formatCurrency(assets)} − Expenses {formatCurrency(liabilities)}
               </p>
             </>
           ) : (
@@ -130,8 +120,7 @@ export default function Dashboard() {
         >
           <p className="text-2xl font-bold text-emerald-600">{formatCurrency(income)}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {filtered.filter((t) => t.type === 'income').length} transaction
-            {filtered.filter((t) => t.type === 'income').length !== 1 ? 's' : ''}
+            {data.summary.incomeCount} transaction{data.summary.incomeCount !== 1 ? 's' : ''}
           </p>
         </SummaryCard>
 
@@ -143,25 +132,32 @@ export default function Dashboard() {
         >
           <p className="text-2xl font-bold text-orange-500">{formatCurrency(spending)}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {filtered.filter((t) => t.type === 'expense').length} transaction
-            {filtered.filter((t) => t.type === 'expense').length !== 1 ? 's' : ''}
+            {data.summary.expenseCount} transaction{data.summary.expenseCount !== 1 ? 's' : ''}
           </p>
         </SummaryCard>
 
         {/* Savings Rate */}
         <SummaryCard
-          title="Savings Rate"
+          title="Invested savings"
           icon={<IndianRupee className="h-5 w-5 text-blue-600" aria-hidden="true" />}
           iconBg="bg-blue-50"
         >
-          <p className={`text-2xl font-bold ${savingsRate >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-            {income === 0 ? '0%' : `${savingsRate.toFixed(1)}%`}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {income === 0 ? 'No income recorded' : `(Income − Spending) ÷ Income`}
-          </p>
+          <p className="text-2xl font-bold text-blue-600">{formatCurrency(investments)}</p>
+          <p className="mt-1 text-xs text-muted-foreground">SIPs, EPF/PPF, stocks and deposits</p>
         </SummaryCard>
       </div>
+
+      <Card>
+        <CardHeader><CardTitle>Savings allocation</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div><p className="text-xs text-muted-foreground">Unallocated savings</p><p className={`text-xl font-bold ${unallocatedSavings >= 0 ? 'text-foreground' : 'text-red-600'}`}>{formatCurrency(unallocatedSavings)}</p></div>
+            <div><p className="text-xs text-muted-foreground">Savings rate</p><p className="text-xl font-bold text-violet-600">{income > 0 ? `${savingsRate.toFixed(1)}%` : '0%'}</p></div>
+            <div><p className="text-xs text-muted-foreground">Investment rate</p><p className="text-xl font-bold text-blue-600">{income > 0 ? `${investmentRate.toFixed(1)}%` : '0%'}</p></div>
+          </div>
+          {unallocatedSavings < 0 && <p className="mt-3 text-sm text-red-600">Investments exceed this period's cash surplus.</p>}
+        </CardContent>
+      </Card>
 
       {/* Charts row */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -170,7 +166,7 @@ export default function Dashboard() {
             <CardTitle>Cash flow</CardTitle>
           </CardHeader>
           <CardContent>
-            <CashFlowChart transactions={allTransactions} />
+            <CashFlowChart points={data.daily} />
           </CardContent>
         </Card>
 
@@ -179,7 +175,7 @@ export default function Dashboard() {
             <CardTitle>Spending by category</CardTitle>
           </CardHeader>
           <CardContent>
-            <SpendingChart transactions={filtered} />
+            <SpendingChart categories={data.categories} />
           </CardContent>
         </Card>
       </div>
@@ -190,7 +186,7 @@ export default function Dashboard() {
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between pb-3">
             <CardTitle>Recent activity</CardTitle>
-            {allTransactions.length > 0 && (
+            {data.summary.count > 0 && (
               <Link
                 to="/transactions"
                 className="flex items-center gap-1 text-sm text-violet-600 hover:underline"
@@ -205,7 +201,7 @@ export default function Dashboard() {
               <div className="px-5 pb-5">
                 <EmptyState
                   title="No transactions yet"
-                  description="Add a transaction or import a CSV to see recent activity."
+                  description="Add a transaction to see recent activity."
                   className="border-0 py-8"
                 />
               </div>
@@ -230,7 +226,7 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {filtered.length === 0 ? (
+              {data.summary.count === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   Import or add transactions to see insights.
                 </p>
@@ -245,8 +241,8 @@ export default function Dashboard() {
               ) : topCategory ? (
                 <p className="text-sm text-foreground">
                   Top spending:{' '}
-                  <span className="font-semibold">{topCategory[0]}</span> at{' '}
-                  <span className="font-semibold">{formatCurrency(topCategory[1])}</span>.
+                  <span className="font-semibold">{topCategory.category}</span> at{' '}
+                  <span className="font-semibold">{formatCurrency(topCategory.amount)}</span>.
                 </p>
               ) : (
                 <p className="text-sm text-muted-foreground">No expense data for this period.</p>
@@ -276,7 +272,7 @@ export default function Dashboard() {
                     <li key={r.id} className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">{r.name}</p>
-                        <p className="text-xs text-muted-foreground">{formatDate(r.nextDate, 'MMM d')}</p>
+                        <p className="text-xs text-muted-foreground">{formatDate(r.nextDueDate, 'MMM d')}</p>
                       </div>
                       <p className="text-sm font-semibold text-foreground flex-shrink-0">
                         {formatCurrency(r.amount)}
@@ -340,10 +336,10 @@ function TransactionRow({ transaction: t }: { transaction: Transaction }) {
       </div>
       <p
         className={`text-sm font-semibold flex-shrink-0 ${
-          t.type === 'income' ? 'text-emerald-600' : 'text-foreground'
+          t.type === 'income' ? 'text-emerald-600' : t.type === 'investment' ? 'text-blue-600' : 'text-foreground'
         }`}
       >
-        {t.type === 'income' ? '+' : '−'}{formatCurrency(t.amount)}
+        {t.type === 'income' ? '+' : t.type === 'investment' ? '' : '−'}{formatCurrency(t.amount)}
       </p>
     </li>
   )

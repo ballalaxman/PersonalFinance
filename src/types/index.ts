@@ -1,7 +1,7 @@
 // ─── Core Domain Types ────────────────────────────────────────────────────────
 
-export type TransactionType = 'expense' | 'income'
-export type TransactionSource = 'manual' | 'csv' | 'document' | 'google-drive'
+export type TransactionType = 'expense' | 'income' | 'investment'
+export type TransactionSource = 'manual' | 'csv' | 'document' | 'google-drive' | 'recurring'
 
 export interface Transaction {
   id: string
@@ -84,6 +84,40 @@ export interface RecurringPayment {
   active: boolean
 }
 
+export type RecurringOccurrenceStatus = 'pending' | 'confirmed' | 'skipped' | 'postponed'
+
+export interface RecurringSchedule {
+  id: string
+  name: string
+  transactionType: TransactionType
+  category: string
+  amount: number
+  account?: string
+  cadence: RecurringCadence
+  startDate: string
+  dayOfMonth?: number
+  nextDueDate: string
+  endDate?: string
+  active: boolean
+  notifyDaysBefore: 0 | 1 | 3 | 7
+  createdAt: string
+  updatedAt: string
+}
+
+export interface RecurringOccurrence {
+  id: string
+  scheduleId: string
+  scheduleName?: string
+  dueDate: string
+  expectedAmount: number
+  status: RecurringOccurrenceStatus
+  transactionId?: string
+  postponedUntil?: string
+  notificationSentAt?: string
+  createdAt: string
+  resolvedAt?: string
+}
+
 export interface Subscription {
   id: string
   name: string
@@ -127,6 +161,8 @@ export interface AppSettings {
   liabilities: number
   netWorthConfigured: boolean
   selectedPeriod: DatePeriod
+  selectedMonth: string
+  timezone: string
   driveFolder?: DriveFolderMeta
   driveSync?: DriveSyncMeta
   freshStart?: boolean
@@ -156,39 +192,12 @@ export interface AppState {
   rules: Rule[]
   settings: AppSettings
   documents: Document[]
+  recurringSchedules: RecurringSchedule[]
+  recurringOccurrences: RecurringOccurrence[]
+  pendingRecurringCount: number
 }
 
 // ─── Import Types ─────────────────────────────────────────────────────────────
-
-export interface ImportResult {
-  inserted: number
-  duplicates: number
-  skipped: number
-  needsReview: number
-  errors: string[]
-}
-
-export interface CsvRow {
-  date?: string
-  merchant?: string
-  description?: string
-  amount?: string
-  debit?: string
-  credit?: string
-  category?: string
-  account?: string
-  [key: string]: string | undefined
-}
-
-export interface CsvColumnMapping {
-  date: string
-  merchant: string
-  amount?: string
-  debit?: string
-  credit?: string
-  category?: string
-  account?: string
-}
 
 // ─── Chart / UI Types ─────────────────────────────────────────────────────────
 
@@ -196,6 +205,7 @@ export interface CashFlowPoint {
   month: string
   income: number
   expenses: number
+  investments: number
 }
 
 export interface CategorySpend {

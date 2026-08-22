@@ -1,16 +1,12 @@
 import React, { useState } from 'react'
-import { PiggyBank, RefreshCw, Upload, Plus, LogOut } from 'lucide-react'
+import { PiggyBank, Plus, LogOut } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { AddEntryModal } from '@/components/modals/AddEntryModal'
-import { ImportModal } from '@/components/modals/ImportModal'
-import { useAppStore } from '@/store/appStore'
 import { useAuthStore } from '@/store/authStore'
 
 export function TopBar() {
   const [addEntryOpen, setAddEntryOpen] = useState(false)
-  const [importOpen, setImportOpen] = useState(false)
-  const { syncDrive, isSyncing } = useAppStore()
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
 
@@ -35,28 +31,6 @@ export function TopBar() {
 
         {/* Actions */}
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={syncDrive}
-            loading={isSyncing}
-            aria-label="Sync Google Drive"
-            title="Drive sync"
-          >
-            <RefreshCw className="h-4 w-4" aria-hidden="true" />
-            <span className="hidden sm:inline">Drive sync</span>
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setImportOpen(true)}
-            aria-label="Import data"
-          >
-            <Upload className="h-4 w-4" aria-hidden="true" />
-            <span className="hidden sm:inline">Import</span>
-          </Button>
-
           <Button
             variant="default"
             size="sm"
@@ -89,7 +63,6 @@ export function TopBar() {
       </header>
 
       <AddEntryModal open={addEntryOpen} onClose={() => setAddEntryOpen(false)} />
-      <ImportModal open={importOpen} onClose={() => setImportOpen(false)} />
     </>
   )
 }
