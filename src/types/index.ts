@@ -48,12 +48,12 @@ export interface Rule {
 // ─── Financial Settings ───────────────────────────────────────────────────────
 
 export type DatePeriod =
-  | 'all-time'
   | 'this-month'
   | 'last-month'
-  | 'last-3-months'
+  | 'last-quarter'
   | 'last-6-months'
   | 'this-year'
+  | 'specific-month'   // month picker mode — paired with selectedMonth
 
 export interface Budget {
   id: string

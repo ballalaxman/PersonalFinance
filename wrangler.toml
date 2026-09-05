@@ -26,7 +26,7 @@ not_found_handling = "single-page-application"
 # Set APP_ORIGIN to the exact production frontend origin.
 
 [vars]
-APP_ORIGIN = "http://localhost:5173"
+APP_ORIGIN = "https://fintrack.ballalaxmanrao987.workers.dev"
 
 # ─── Local development ──────────────────────────────────────────────────────
 [dev]

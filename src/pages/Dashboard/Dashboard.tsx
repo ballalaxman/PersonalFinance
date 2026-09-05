@@ -5,19 +5,17 @@ import {
   TrendingDown,
   IndianRupee,
   PiggyBank,
-  Settings,
   ArrowRight,
   Info,
   Calendar,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PeriodSelector } from './PeriodSelector'
 import { CashFlowChart } from './CashFlowChart'
 import { SpendingChart } from './SpendingChart'
 import { useAppStore } from '@/store/appStore'
-import { currentMonth, formatDate, monthDateRange } from '@/utils/dates'
+import { currentMonth, formatDate, resolveDashboardRange } from '@/utils/dates'
 import { formatCurrency, calcSavingsRate } from '@/utils/currency'
 import type { Transaction } from '@/types'
 import { CATEGORY_COLORS } from '@/utils/constants'
@@ -25,16 +23,19 @@ import { dashboardService, type DashboardData } from '@/services/dashboard'
 
 export default function Dashboard() {
   const { state } = useAppStore()
-  const month = state?.settings.selectedMonth ?? currentMonth()
+  const period       = state?.settings.selectedPeriod  ?? 'this-month'
+  const selectedMonth = state?.settings.selectedMonth  ?? currentMonth()
   const [data, setData] = useState<DashboardData>({ summary: { count: 0, incomeCount: 0, expenseCount: 0, needsReviewCount: 0, income: 0, expense: 0, investment: 0 }, daily: [], categories: [], recent: [] })
   const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
-    const range = monthDateRange(month)
-    dashboardService.get(range.startDate, range.endDate).then((result) => !cancelled && setData(result)).catch(() => !cancelled && setData({ summary: { count: 0, incomeCount: 0, expenseCount: 0, needsReviewCount: 0, income: 0, expense: 0, investment: 0 }, daily: [], categories: [], recent: [] }))
+    const { startDate, endDate } = resolveDashboardRange(period, selectedMonth)
+    dashboardService.get(startDate, endDate)
+      .then((result) => { if (!cancelled) setData(result) })
+      .catch(() => { if (!cancelled) setData({ summary: { count: 0, incomeCount: 0, expenseCount: 0, needsReviewCount: 0, income: 0, expense: 0, investment: 0 }, daily: [], categories: [], recent: [] }) })
     return () => { cancelled = true }
-  }, [month, refreshKey])
+  }, [period, selectedMonth, refreshKey])
 
   useEffect(() => {
     const refresh = () => setRefreshKey((value) => value + 1)
@@ -42,18 +43,17 @@ export default function Dashboard() {
     return () => window.removeEventListener('fintrack:transactions-changed', refresh)
   }, [])
 
-  const income = data.summary.income
-  const spending = data.summary.expense
-  const savingsRate = calcSavingsRate(income, spending)
-
+  const income      = data.summary.income
+  const spending    = data.summary.expense
   const investments = data.summary.investment
-  const cashSurplus = income - spending
-  const unallocatedSavings = cashSurplus - investments
-  const investmentRate = income > 0 ? (investments / income) * 100 : 0
-  const netWorthConfigured = true
-  const assets = income
-  const liabilities = spending
-  const netWorth = cashSurplus
+
+  // ── Correct cashflow formulas ──────────────────────────────────────────────
+  // Cash surplus = what's truly left after BOTH spending AND investing
+  const cashSurplus     = income - spending - investments
+  // Savings rate = % of income that wasn't spent (invested + surplus combined)
+  const savingsRate     = calcSavingsRate(income, spending)
+  // Investment rate = % of income actively deployed to investments
+  const investmentRate  = income > 0 ? (investments / income) * 100 : 0
 
   const recentActivity = data.recent
   const needsReviewCount = data.summary.needsReviewCount
@@ -84,32 +84,18 @@ export default function Dashboard() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {/* Net Worth */}
+        {/* Cash surplus */}
         <SummaryCard
           title="Cash surplus"
           icon={<PiggyBank className="h-5 w-5 text-violet-600" aria-hidden="true" />}
           iconBg="bg-violet-50"
         >
-          {netWorthConfigured ? (
-            <>
-              <p className={`text-2xl font-bold ${netWorth >= 0 ? 'text-foreground' : 'text-red-600'}`}>
-                {formatCurrency(netWorth)}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Income {formatCurrency(assets)} − Expenses {formatCurrency(liabilities)}
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="text-2xl font-bold text-muted-foreground">Not set</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Configure in{' '}
-                <Link to="/settings" className="text-violet-600 underline">
-                  Settings
-                </Link>
-              </p>
-            </>
-          )}
+          <p className={`text-2xl font-bold ${cashSurplus >= 0 ? 'text-foreground' : 'text-red-600'}`}>
+            {formatCurrency(cashSurplus)}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            After expenses &amp; investments
+          </p>
         </SummaryCard>
 
         {/* Income */}
@@ -148,14 +134,36 @@ export default function Dashboard() {
       </div>
 
       <Card>
-        <CardHeader><CardTitle>Savings allocation</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Savings summary</CardTitle></CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-3">
-            <div><p className="text-xs text-muted-foreground">Unallocated savings</p><p className={`text-xl font-bold ${unallocatedSavings >= 0 ? 'text-foreground' : 'text-red-600'}`}>{formatCurrency(unallocatedSavings)}</p></div>
-            <div><p className="text-xs text-muted-foreground">Savings rate</p><p className="text-xl font-bold text-violet-600">{income > 0 ? `${savingsRate.toFixed(1)}%` : '0%'}</p></div>
-            <div><p className="text-xs text-muted-foreground">Investment rate</p><p className="text-xl font-bold text-blue-600">{income > 0 ? `${investmentRate.toFixed(1)}%` : '0%'}</p></div>
+            <div>
+              <p className="text-xs text-muted-foreground">Savings rate</p>
+              <p className="text-xl font-bold text-violet-600">
+                {income > 0 ? `${savingsRate.toFixed(1)}%` : '0%'}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">% of income not spent</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Investment rate</p>
+              <p className="text-xl font-bold text-blue-600">
+                {income > 0 ? `${investmentRate.toFixed(1)}%` : '0%'}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">% of income invested</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Cash surplus</p>
+              <p className={`text-xl font-bold ${cashSurplus >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                {formatCurrency(cashSurplus)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">Income − expenses − investments</p>
+            </div>
           </div>
-          {unallocatedSavings < 0 && <p className="mt-3 text-sm text-red-600">Investments exceed this period's cash surplus.</p>}
+          {cashSurplus < 0 && (
+            <p className="mt-3 text-sm text-red-600">
+              Expenses and investments exceed income this period.
+            </p>
+          )}
         </CardContent>
       </Card>
 
