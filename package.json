@@ -19,7 +19,11 @@
     "db:migrate:month-filtering": "wrangler d1 execute fintrack-db --local --file=worker/db/migrations/0003_month_filtering.sql",
     "db:migrate:month-filtering:remote": "wrangler d1 execute fintrack-db --remote --file=worker/db/migrations/0003_month_filtering.sql",
     "db:migrate:habits": "wrangler d1 execute fintrack-db --local --file=worker/db/migrations/0004_habits.sql",
-    "db:migrate:habits:remote": "wrangler d1 execute fintrack-db --remote --file=worker/db/migrations/0004_habits.sql"
+    "db:migrate:habits:remote": "wrangler d1 execute fintrack-db --remote --file=worker/db/migrations/0004_habits.sql",
+    "icons": "node scripts/generate-icons.mjs",
+    "vapid:generate": "node scripts/generate-vapid-keys.mjs",
+    "db:migrate:reminders": "wrangler d1 execute fintrack-db --local --file=worker/db/migrations/0005_reminders.sql",
+    "db:migrate:reminders:remote": "wrangler d1 execute fintrack-db --remote --file=worker/db/migrations/0005_reminders.sql"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -46,6 +50,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260815.1",
     "@eslint/js": "^9.8.0",
+    "@resvg/resvg-js": "^2.6.2",
     "@testing-library/jest-dom": "^6.4.8",
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "^14.5.2",

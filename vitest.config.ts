@@ -9,6 +9,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
     css: true,
+    // Other tools' worktrees and scratch checks are not part of this suite
+    exclude: ['**/node_modules/**', '**/dist/**', '.kilo/**', '.tmp-verify/**'],
   },
   resolve: {
     alias: {

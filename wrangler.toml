@@ -19,6 +19,9 @@ bucket_name = "fintrack-files"
 [assets]
 directory = "./dist"
 not_found_handling = "single-page-application"
+# Only API calls reach the Worker; every other path is a static file or falls
+# back to index.html, so deep links like /habits or /settings load the app.
+run_worker_first = ["/api/*"]
 
 # ─── Secrets ────────────────────────────────────────────────────────────────
 # Production secret is stored securely using:

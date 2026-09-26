@@ -117,6 +117,10 @@ export interface AppSettings {
   selectedPeriod: DatePeriod
   selectedMonth: string
   timezone: string
+  /** Local hour for bill reminders; null = off (server default 9) */
+  reminderHour?: number | null
+  /** Local hour for the habit nudge; null = off (server default 20) */
+  habitReminderHour?: number | null
 }
 
 export interface AppState {

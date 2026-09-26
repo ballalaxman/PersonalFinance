@@ -42,6 +42,11 @@ The app has two dashboards, switched with the **Finance / Habits** tabs in the h
 - Create monthly category budgets and compare them with spending.
 - Create savings goals and track saved amounts.
 
+### Reminders
+
+- Push notifications for recurring bills (due, awaiting confirmation, or coming up) and an evening habit nudge.
+- Choose reminder times or turn either off in Settings; send a test notification to check a device.
+
 ### Rules, tags, and settings
 
 - Create and manage categorization rules.
@@ -140,6 +145,8 @@ npm run db:migrate:month-filtering # Add the local month-pagination index
 npm run db:migrate:month-filtering:remote # Add the production month-pagination index
 npm run db:migrate:habits # Add the habit tables locally
 npm run db:migrate:habits:remote # Add the habit tables in production
+npm run db:migrate:reminders:remote # Add the reminder log table in production
+npm run icons        # Regenerate favicon and PWA icons from scripts/generate-icons.mjs
 npm run deploy       # Deploy with Wrangler
 ```
 
@@ -156,13 +163,15 @@ Configure the production secret, build, and deploy:
 
 ```bash
 npx wrangler secret put JWT_SECRET
+npm run vapid:generate                   # once; prints a key pair
+npx wrangler secret put VAPID_PUBLIC_KEY
 npx wrangler secret put VAPID_PRIVATE_KEY
 npx wrangler secret put ALLOWED_EMAILS   # comma-separated emails allowed to register
 npm run build
 npm run deploy
 ```
 
-Set `VAPID_PUBLIC_KEY` and the exact production `APP_ORIGIN` in the deployed Worker environment before enabling browser reminders. Apply `worker/db/migrations/0002_post_testing_foundation.sql` to an existing D1 database before deploying code that reads the new recurring tables.
+Set the exact production `APP_ORIGIN` before enabling reminders; `VAPID_SUBJECT` (a `mailto:` contact) is optional. See APPLICATION_GUIDE.md §9 for how reminders work. Apply `worker/db/migrations/0002_post_testing_foundation.sql` to an existing D1 database before deploying code that reads the new recurring tables.
 
 Before deploying, confirm that the D1 database ID and R2 bucket name in `wrangler.toml` belong to the intended environment.
 

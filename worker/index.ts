@@ -12,6 +12,7 @@ import { tagRoutes } from './routes/tags'
 import { ruleRoutes } from './routes/rules'
 import { recurringRoutes } from './routes/recurring'
 import { processDueSchedules } from './scheduled'
+import { processReminders } from './reminders'
 import { pushRoutes } from './routes/push'
 import { dashboardRoutes } from './routes/dashboard'
 import { habitRoutes } from './routes/habits'
@@ -24,6 +25,8 @@ export interface Env {
   ALLOWED_EMAILS?: string
   VAPID_PUBLIC_KEY?: string
   VAPID_PRIVATE_KEY?: string
+  /** Contact for push services (mailto: or https:). Defaults to APP_ORIGIN. */
+  VAPID_SUBJECT?: string
 }
 
 const app = new Hono<{ Bindings: Env }>()
@@ -76,6 +79,7 @@ app.onError((err, c) => {
 export default {
   fetch: app.fetch,
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(processDueSchedules(env))
+    // Occurrences first, so items that became due this run are included in reminders
+    ctx.waitUntil(processDueSchedules(env).then(() => processReminders(env)))
   },
 }
