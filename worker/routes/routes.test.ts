@@ -5,6 +5,7 @@ import { recurringRoutes } from './recurring'
 import { transactionRoutes } from './transactions'
 import { preferencesRoutes } from './preferences'
 import { habitRoutes } from './habits'
+import { pushRoutes } from './push'
 
 interface Executed { sql: string; args: unknown[] }
 
@@ -149,5 +150,31 @@ describe('habits API', () => {
     const res = await request('/api/habits/h1/logs/2026-09-01', { method: 'PUT' })
     expect(res.status).toBe(200)
     expect(executed.find((e) => e.sql.includes('INSERT OR IGNORE INTO habit_logs'))?.args.slice(0, 3)).toEqual(['h1', 'user-1', '2026-09-01'])
+  })
+})
+
+describe('push subscriptions', () => {
+  const body = (endpoint: string) => ({ body: JSON.stringify({ endpoint, keys: { p256dh: 'k', auth: 'a' } }), headers: { 'Content-Type': 'application/json' } })
+
+  it('accepts a browser push service endpoint', async () => {
+    const { db, executed } = fakeDb()
+    const request = appWith('/api/push', pushRoutes as never, db)
+    const res = await request('/api/push/subscribe', { method: 'POST', ...body('https://fcm.googleapis.com/fcm/send/abc') })
+    expect(res.status).toBe(201)
+    expect(executed.some((e) => e.sql.startsWith('INSERT INTO push_subscriptions'))).toBe(true)
+  })
+
+  it('refuses arbitrary URLs so the Worker never posts to them', async () => {
+    const { db, executed } = fakeDb()
+    const request = appWith('/api/push', pushRoutes as never, db)
+    const res = await request('/api/push/subscribe', { method: 'POST', ...body('https://attacker.example/collect') })
+    expect(res.status).toBe(422)
+    expect(executed.length).toBe(0)
+  })
+
+  it('reports when the server has no VAPID keys for a test send', async () => {
+    const { db } = fakeDb()
+    const request = appWith('/api/push', pushRoutes as never, db)
+    expect((await request('/api/push/test', { method: 'POST' })).status).toBe(503)
   })
 })

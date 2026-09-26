@@ -2,13 +2,12 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   LayoutGrid, CreditCard, RefreshCw,
-  Trash2, AlertTriangle, Bell
+  Trash2, AlertTriangle
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { Badge } from '@/components/ui/Badge'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter
@@ -16,7 +15,7 @@ import {
 import { useAppStore } from '@/store/appStore'
 import { useHabitStore } from '@/store/habitStore'
 import { api } from '@/services/api'
-import { pushService } from '@/services/push'
+import { ReminderSettings } from './ReminderSettings'
 
 export default function Settings() {
   const { state, updateSettings, loadState } = useAppStore()
@@ -24,9 +23,6 @@ export default function Settings() {
 
   const settings = state?.settings
   const [timezone, setTimezone] = useState(settings?.timezone ?? 'Asia/Kolkata')
-  const [notificationState, setNotificationState] = useState(
-    typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
-  )
 
   const [newCategory, setNewCategory] = useState('')
   const [newAccount, setNewAccount] = useState('')
@@ -127,15 +123,7 @@ export default function Settings() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2"><Bell className="h-4 w-4 text-violet-600" />Recurring reminders</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">Enable privacy-safe reminders on this browser. Financial amounts and account details are never shown in notification text.</p>
-          <p className="text-sm text-amber-700">Server-side delivery is not enabled yet: this registers the device, but reminders are not sent. Check the Recurring page for items that need confirmation.</p>
-          <Badge variant={notificationState === 'granted' ? 'success' : notificationState === 'denied' ? 'warning' : 'secondary'}>{notificationState}</Badge>
-          <div className="flex gap-2"><Button onClick={async () => { try { await pushService.enable(); setNotificationState('granted'); toast.success('Recurring reminders enabled') } catch (e) { toast.error(e instanceof Error ? e.message : 'Unable to enable reminders') } }}>Enable reminders</Button><Button variant="outline" onClick={async () => { try { await pushService.disable(); setNotificationState(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission); toast.success('Reminders disabled on this device') } catch (e) { toast.error(e instanceof Error ? e.message : 'Unable to disable reminders') } }}>Disable on this device</Button></div>
-        </CardContent>
-      </Card>
+      <ReminderSettings />
 
       {/* Categories */}
       <Card>

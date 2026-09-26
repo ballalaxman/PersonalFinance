@@ -13,6 +13,9 @@ const DEFAULT_SETTINGS = {
   budgets: [],
   selectedPeriod: 'this-month',
   timezone: 'Asia/Kolkata',
+  // Local hours for reminders; null turns that reminder off
+  reminderHour: 9,
+  habitReminderHour: 20,
 }
 
 /**

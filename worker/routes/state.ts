@@ -87,6 +87,7 @@ stateRoutes.delete('/', async (c) => {
   // Delete all this user's D1 records
   // CASCADE on FK handles child rows, but we delete explicitly for clarity
   await db.batch([
+    db.prepare('DELETE FROM reminder_log          WHERE userId = ?1').bind(userId),
     db.prepare('DELETE FROM habit_logs            WHERE userId = ?1').bind(userId),
     db.prepare('DELETE FROM habits                WHERE userId = ?1').bind(userId),
     db.prepare('DELETE FROM recurring_occurrences WHERE userId = ?1').bind(userId),

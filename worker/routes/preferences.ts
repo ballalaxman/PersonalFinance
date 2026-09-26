@@ -29,6 +29,8 @@ const preferencesSchema = z.object({
   selectedPeriod: z.enum(['this-month', 'last-month', 'last-quarter', 'last-6-months', 'this-year', 'specific-month']),
   selectedMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
   timezone: z.string().refine(isValidTimezone, 'Must be a valid IANA timezone'),
+  reminderHour: z.number().int().min(0).max(23).nullable(),
+  habitReminderHour: z.number().int().min(0).max(23).nullable(),
 }).partial().strip()
 
 // PUT /api/preferences — upsert settings for the authenticated user

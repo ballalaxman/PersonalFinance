@@ -414,17 +414,27 @@ VAPID_PUBLIC_KEY = "<generated-public-key>"
 
 ## 9. Configure Browser Notifications
 
-The browser side requires:
+Reminders are real Web Push notifications sent by the Worker's cron job (every 15 minutes). They work on Chrome, Edge, Firefox, and Android, and on iPhone once FinTrack is added to the Home Screen.
 
-- HTTPS in production, or `localhost` during development;
-- a registered PWA service worker;
-- a VAPID public key;
-- permission granted through the Settings action;
-- a stored device subscription.
+### Server setup
 
-In Settings, select **Enable reminders**. The application requests permission only after that user action. Notification text is privacy-safe and does not include amounts or account names.
+1. Generate a key pair once: `npm run vapid:generate`.
+2. Store both keys as Worker secrets: `npx wrangler secret put VAPID_PUBLIC_KEY` and `npx wrangler secret put VAPID_PRIVATE_KEY`. For local development, put them in `.dev.vars`.
+3. Optionally set `VAPID_SUBJECT` to a `mailto:` or `https:` contact; it defaults to `APP_ORIGIN`.
+4. Apply `worker/db/migrations/0005_reminders.sql` (the deploy workflow's `schema.sql` run also creates it).
 
-Current limitation: browser subscription storage and notification display/deep-link handling are implemented, but server-side encrypted Web Push dispatch is not yet complete. Enabling the setting registers the device, but real remote delivery must not be considered production-ready until VAPID signing/encryption, bounded delivery, expired-endpoint cleanup, and delivery tests are completed.
+Changing the keys invalidates existing subscriptions; each device must turn reminders on again.
+
+### What gets sent
+
+- **Bill reminders**, at the hour chosen in Settings (default 9:00 am): recurring items that are due or were postponed until today and still need confirming, plus advance notice for schedules with "N days before" set.
+- **Habit nudge**, at the hour chosen in Settings (default 8:00 pm): daily habits not checked today, and weekly habits that can only reach this week's target if done today.
+
+Each reminder is sent once (tracked in `reminder_log`), times use the timezone in Settings, and either reminder can be turned off. Notifications show names only, never amounts or accounts.
+
+### Using it
+
+In Settings → Reminders, select **Turn on for this device**, allow notifications, then **Send test notification**. Expired subscriptions are removed automatically. For safety the Worker only sends to known browser push services (Google, Mozilla, Apple, Microsoft).
 
 ## 10. Data sync policy
 
@@ -498,13 +508,12 @@ Implemented or substantially implemented:
 - idempotent occurrence generation;
 - confirmation, skipping, and postponement;
 - shared Cron configuration;
-- push subscription registration and notification-click handling;
+- Web Push reminders for recurring items and habits (VAPID + RFC 8291 encryption);
+- habit tracking with streaks, weekly targets, and a separate dashboard;
 - legacy subscription redirect and migration path.
 
 Still requiring completion or verification before production:
 
-- server-side encrypted Web Push delivery;
-- complete removal of deprecated Net Worth implementation code after the rollback window;
 - automated D1 backups and restore drill;
 - full unit, API, migration, authorization, E2E, responsive, and production smoke testing.
 

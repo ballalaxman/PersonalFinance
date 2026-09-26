@@ -8,11 +8,11 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      includeAssets: ['favicon.svg', 'favicon-32x32.png', 'apple-touch-icon.png', 'badge-96x96.png'],
       manifest: {
         name: 'FinTrack',
         short_name: 'FinTrack',
-        description: 'Private personal finance dashboard',
+        description: 'Private finance and habit tracker',
         theme_color: '#6558D3',
         background_color: '#f8f9fc',
         display: 'standalone',
@@ -31,10 +31,10 @@ export default defineConfig({
             type: 'image/png'
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'pwa-maskable-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable'
+            purpose: 'maskable'
           }
         ]
       },
