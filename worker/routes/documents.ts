@@ -63,6 +63,28 @@ documentRoutes.post('/', async (c) => {
   return c.json({ documents: inserted, errors }, inserted.length > 0 ? 201 : 400)
 })
 
+// GET /api/documents/:id/download — stream the private R2 object to its owner
+documentRoutes.get('/:id/download', async (c) => {
+  const { id: userId } = c.get('user' as never) as { id: string }
+  const doc = await c.env.DB
+    .prepare('SELECT filename, mimeType, objectKey FROM documents WHERE id = ?1 AND userId = ?2')
+    .bind(c.req.param('id'), userId)
+    .first<{ filename: string; mimeType: string; objectKey: string }>()
+  if (!doc) return c.json({ error: 'Not found' }, 404)
+
+  const object = await c.env.BUCKET.get(doc.objectKey)
+  if (!object) return c.json({ error: 'File is missing from storage' }, 404)
+
+  return new Response(object.body as unknown as ReadableStream, {
+    headers: {
+      'Content-Type': ALLOWED_TYPES.has(doc.mimeType) ? doc.mimeType : 'application/octet-stream',
+      'Content-Disposition': `inline; filename="${safeFilename(doc.filename)}"`,
+      'Cache-Control': 'private, no-store',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  })
+})
+
 // DELETE /api/documents/:id
 documentRoutes.delete('/:id', async (c) => {
   const { id: userId } = c.get('user' as never) as { id: string }

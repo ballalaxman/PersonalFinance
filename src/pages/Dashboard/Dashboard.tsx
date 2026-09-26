@@ -15,25 +15,30 @@ import { PeriodSelector } from './PeriodSelector'
 import { CashFlowChart } from './CashFlowChart'
 import { SpendingChart } from './SpendingChart'
 import { useAppStore } from '@/store/appStore'
-import { currentMonth, formatDate, resolveDashboardRange } from '@/utils/dates'
-import { formatCurrency, calcSavingsRate } from '@/utils/currency'
+import { currentMonth, formatDate, resolveDashboardRange, today } from '@/utils/dates'
+import { formatCurrency } from '@/utils/currency'
+import { computeCashFlow } from '@/utils/cashflow'
+import { Button } from '@/components/ui/Button'
 import type { Transaction } from '@/types'
 import { CATEGORY_COLORS } from '@/utils/constants'
 import { dashboardService, type DashboardData } from '@/services/dashboard'
+
+const EMPTY_DASHBOARD: DashboardData = { summary: { count: 0, incomeCount: 0, expenseCount: 0, needsReviewCount: 0, income: 0, expense: 0, investment: 0 }, daily: [], categories: [], recent: [] }
 
 export default function Dashboard() {
   const { state } = useAppStore()
   const period       = state?.settings.selectedPeriod  ?? 'this-month'
   const selectedMonth = state?.settings.selectedMonth  ?? currentMonth()
-  const [data, setData] = useState<DashboardData>({ summary: { count: 0, incomeCount: 0, expenseCount: 0, needsReviewCount: 0, income: 0, expense: 0, investment: 0 }, daily: [], categories: [], recent: [] })
+  const [data, setData] = useState<DashboardData>(EMPTY_DASHBOARD)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
     const { startDate, endDate } = resolveDashboardRange(period, selectedMonth)
     dashboardService.get(startDate, endDate)
-      .then((result) => { if (!cancelled) setData(result) })
-      .catch(() => { if (!cancelled) setData({ summary: { count: 0, incomeCount: 0, expenseCount: 0, needsReviewCount: 0, income: 0, expense: 0, investment: 0 }, daily: [], categories: [], recent: [] }) })
+      .then((result) => { if (!cancelled) { setData(result); setLoadError(null) } })
+      .catch((err) => { if (!cancelled) { setData(EMPTY_DASHBOARD); setLoadError(err instanceof Error ? err.message : 'Request failed') } })
     return () => { cancelled = true }
   }, [period, selectedMonth, refreshKey])
 
@@ -47,13 +52,7 @@ export default function Dashboard() {
   const spending    = data.summary.expense
   const investments = data.summary.investment
 
-  // ── Correct cashflow formulas ──────────────────────────────────────────────
-  // Cash surplus = what's truly left after BOTH spending AND investing
-  const cashSurplus     = income - spending - investments
-  // Savings rate = % of income that wasn't spent (invested + surplus combined)
-  const savingsRate     = calcSavingsRate(income, spending)
-  // Investment rate = % of income actively deployed to investments
-  const investmentRate  = income > 0 ? (investments / income) * 100 : 0
+  const { cashSurplus, unallocated, savingsRate, investmentRate } = computeCashFlow({ income, expense: spending, investment: investments })
 
   const recentActivity = data.recent
   const needsReviewCount = data.summary.needsReviewCount
@@ -64,9 +63,9 @@ export default function Dashboard() {
   // Upcoming confirmed recurring
   const upcomingRecurring = useMemo(() => {
     const all = (state?.recurringSchedules ?? []).filter((r) => r.active)
-    const today = new Date().toISOString().split('T')[0]
+    const todayDate = today()
     return all
-      .filter((r) => r.nextDueDate >= today)
+      .filter((r) => r.nextDueDate >= todayDate)
       .sort((a, b) => a.nextDueDate.localeCompare(b.nextDueDate))
       .slice(0, 3)
   }, [state?.recurringSchedules])
@@ -82,6 +81,13 @@ export default function Dashboard() {
         <PeriodSelector />
       </div>
 
+      {loadError && (
+        <div role="alert" className="flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
+          <span>Couldn't load figures for this period ({loadError}). The totals below are not your real numbers.</span>
+          <Button size="sm" variant="outline" onClick={() => setRefreshKey((value) => value + 1)}>Retry</Button>
+        </div>
+      )}
+
       {/* Summary cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {/* Cash surplus */}
@@ -94,7 +100,7 @@ export default function Dashboard() {
             {formatCurrency(cashSurplus)}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            After expenses &amp; investments
+            Income − expenses
           </p>
         </SummaryCard>
 
@@ -152,16 +158,20 @@ export default function Dashboard() {
               <p className="text-xs text-muted-foreground mt-0.5">% of income invested</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Cash surplus</p>
-              <p className={`text-xl font-bold ${cashSurplus >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                {formatCurrency(cashSurplus)}
+              <p className="text-xs text-muted-foreground">Unallocated savings</p>
+              <p className={`text-xl font-bold ${unallocated >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                {formatCurrency(unallocated)}
               </p>
-              <p className="text-xs text-muted-foreground mt-0.5">Income − expenses − investments</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Cash surplus − investments</p>
             </div>
           </div>
-          {cashSurplus < 0 && (
+          {cashSurplus < 0 ? (
             <p className="mt-3 text-sm text-red-600">
-              Expenses and investments exceed income this period.
+              Expenses exceed income this period.
+            </p>
+          ) : unallocated < 0 && (
+            <p className="mt-3 text-sm text-red-600">
+              Investments exceed this period's cash surplus.
             </p>
           )}
         </CardContent>

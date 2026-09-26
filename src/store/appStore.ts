@@ -5,6 +5,7 @@ import type { AppState, AppSettings, DatePeriod, Transaction, Tag, Rule, Documen
 import { DEFAULT_CATEGORIES, DEFAULT_ACCOUNTS } from '@/utils/constants'
 import { currentMonth } from '@/utils/dates'
 import { toast } from 'sonner'
+import { useAuthStore } from '@/store/authStore'
 
 interface AppStore {
   // State
@@ -36,12 +37,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   accounts: [...DEFAULT_ACCOUNTS],
   goals: [],
   budgets: [],
-  subscriptions: [],
-  recurring: [],
-  dismissedPatterns: [],
-  assets: 0,
-  liabilities: 0,
-  netWorthConfigured: false,
   selectedPeriod: 'this-month',
   selectedMonth: currentMonth(),
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata',
@@ -194,3 +189,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ state: { ...state, rules: state.rules.filter((r) => r.id !== id) } })
   },
 }))
+
+// Drop the previous user's financial data from memory whenever the signed-in
+// account changes (sign-out, expiry, or a different user signing in).
+useAuthStore.subscribe((next, prev) => {
+  if (next.user?.id !== prev.user?.id || (!next.token && prev.token)) {
+    useAppStore.setState({ state: null, error: null, isLoading: false })
+  }
+})

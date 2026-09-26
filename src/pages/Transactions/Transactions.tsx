@@ -1,10 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Search, Receipt, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
-import { Card, CardContent, CardHeader } from '@/components/ui/Card'
-import { Input } from '@/components/ui/Input'
+import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import {
   Select,
@@ -19,8 +17,9 @@ import { InlineTagEdit } from './InlineTagEdit'
 import { DeleteTransactionDialog } from './DeleteTransactionDialog'
 import { TransactionEditModal } from './TransactionEditModal'
 import { useAppStore } from '@/store/appStore'
-import { currentMonth, formatDate, monthDateRange } from '@/utils/dates'
+import { currentMonth, formatDate, resolveDashboardRange } from '@/utils/dates'
 import { formatCurrency } from '@/utils/currency'
+import { computeCashFlow } from '@/utils/cashflow'
 import type { Transaction } from '@/types'
 import { transactionsService, type TransactionListQuery, type TransactionTotals } from '@/services/transactions'
 
@@ -38,9 +37,11 @@ export default function Transactions() {
   const [totals, setTotals] = useState<TransactionTotals>({ count: 0, income: 0, expense: 0, investment: 0 })
   const [refreshKey, setRefreshKey] = useState(0)
 
+  // Same period resolution as the Dashboard, so the shared selector means the same thing on both pages
+  const period = state?.settings.selectedPeriod ?? 'this-month'
   const month = state?.settings.selectedMonth ?? currentMonth()
   const query = useMemo<TransactionListQuery>(() => {
-    const range = monthDateRange(month)
+    const range = resolveDashboardRange(period, month)
     return {
       ...range,
       search: search.trim() || undefined,
@@ -48,7 +49,7 @@ export default function Transactions() {
       category: categoryFilter === 'all' ? undefined : categoryFilter,
       type: typeFilter === 'all' ? undefined : typeFilter as Transaction['type'],
     }
-  }, [month, search, accountFilter, categoryFilter, typeFilter])
+  }, [period, month, search, accountFilter, categoryFilter, typeFilter])
 
   useEffect(() => {
     let cancelled = false
@@ -60,7 +61,7 @@ export default function Transactions() {
         setHasMore(page.hasMore)
         setTotals(page.totals)
       }).catch(() => !cancelled && toast.error('Failed to load transactions'))
-    }, search.trim() ? 250 : 0)
+    }, query.search ? 250 : 0)
     return () => { cancelled = true; window.clearTimeout(timer) }
   }, [query, replaceTransactions, refreshKey])
 
@@ -78,6 +79,7 @@ export default function Transactions() {
   const totalIncome = totals.income
   const totalExpense = totals.expense
   const totalInvestment = totals.investment
+  const { cashSurplus } = computeCashFlow(totals)
 
   return (
     <div className="space-y-5">
@@ -107,8 +109,8 @@ export default function Transactions() {
           </div>
           <div className="rounded-xl border border-border bg-card p-3">
             <p className="text-xs text-muted-foreground">Cash surplus</p>
-            <p className={`text-lg font-bold ${totalIncome - totalExpense >= 0 ? 'text-foreground' : 'text-red-600'}`}>
-              {formatCurrency(totalIncome - totalExpense)}
+            <p className={`text-lg font-bold ${cashSurplus >= 0 ? 'text-foreground' : 'text-red-600'}`}>
+              {formatCurrency(cashSurplus)}
             </p>
           </div>
         </div>
@@ -217,6 +219,8 @@ export default function Transactions() {
           appendTransactions(page.transactions)
           setNextCursor(page.nextCursor)
           setHasMore(page.hasMore)
+        } catch {
+          toast.error('Failed to load more transactions')
         } finally { setLoadingMore(false) }
       }}>Load more</Button></div>}
 
@@ -279,14 +283,14 @@ function TransactionRow({
 
         <button
           onClick={onEdit}
-          className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-violet-600 hover:bg-violet-50 transition-all"
+          className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 hover:text-violet-600 hover:bg-violet-50 transition-all"
           aria-label={`Edit transaction ${t.merchant}`}
         >
           <Pencil className="h-4 w-4" aria-hidden="true" />
         </button>
         <button
           onClick={onDelete}
-          className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-50 transition-all"
+          className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 hover:text-red-500 hover:bg-red-50 transition-all"
           aria-label={`Delete transaction ${t.merchant}`}
         >
           <span aria-hidden="true" className="text-base">×</span>

@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { serializeTransaction } from '../utils/transactions'
-import { getSettings, initEmptyState, upsertSettings } from '../utils/settings'
+import { getSettings, initEmptyState } from '../utils/settings'
 import { migrateLegacyRecurringSettings } from '../utils/legacyMigration'
 
 export const stateRoutes = new Hono<{ Bindings: Env }>()
@@ -87,6 +87,8 @@ stateRoutes.delete('/', async (c) => {
   // Delete all this user's D1 records
   // CASCADE on FK handles child rows, but we delete explicitly for clarity
   await db.batch([
+    db.prepare('DELETE FROM habit_logs            WHERE userId = ?1').bind(userId),
+    db.prepare('DELETE FROM habits                WHERE userId = ?1').bind(userId),
     db.prepare('DELETE FROM recurring_occurrences WHERE userId = ?1').bind(userId),
     db.prepare('DELETE FROM recurring_schedules   WHERE userId = ?1').bind(userId),
     db.prepare('DELETE FROM push_subscriptions    WHERE userId = ?1').bind(userId),
@@ -108,12 +110,5 @@ stateRoutes.delete('/', async (c) => {
   // Re-seed empty defaults for this user
   await initEmptyState(db, userId)
 
-  const ts = new Date().toISOString()
-  await upsertSettings(db, userId, {
-    freshStart: true,
-    driveResetAt: ts,
-    selectedPeriod: 'this-month',
-  })
-
-  return c.json({ success: true, driveResetAt: ts })
+  return c.json({ success: true })
 })

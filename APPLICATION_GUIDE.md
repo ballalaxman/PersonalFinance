@@ -26,6 +26,17 @@ Investment transactions are not counted as ordinary expenses and do not consume 
 
 ## 2. Application Pages
 
+### Switching dashboards
+
+The header has **Finance** and **Habits** tabs. Each tab keeps its own navigation and remembers the last page you opened in it. Settings is shared between both.
+
+### Habits
+
+- **Today** lists active habits with a check button, the current streak, and progress toward weekly targets. It also shows today's progress, the top streak, average 30-day completion, a 12-week heatmap, and a This week grid for backfilling missed days.
+- **Manage** lets you edit, archive, restore, or delete habits.
+
+Daily habits build streaks in days. Weekly habits (for example 3× per week) build streaks in weeks that meet the target; an unfinished current week or an unchecked today does not break a streak. Check-ins are stored per calendar day in D1 (`habits`, `habit_logs`) and can't be set for future dates.
+
 ### Dashboard
 
 Use the Dashboard to review the selected period.
@@ -106,7 +117,7 @@ Use Documents to upload receipts, invoices, statements, PDFs, or images.
 
 ### Rules
 
-Use Rules to automate category selection based on merchant text. Rules can be created, edited, enabled, disabled, and deleted.
+Use Rules to automate category selection based on merchant text. Rules can be created, edited, enabled, disabled, and deleted. A rule's action is either a category name or `tag:<name>` to add a tag. Rules run when a transaction is added, oldest rule first, so a newer matching category rule overrides an older one.
 
 ### Settings
 
@@ -114,7 +125,6 @@ Use Settings to manage:
 
 - transaction categories;
 - accounts;
-- ignored recurring suggestions;
 - recurring schedule timezone;
 - browser reminder permission;
 - complete data deletion.
@@ -498,4 +508,3 @@ Still requiring completion or verification before production:
 - automated D1 backups and restore drill;
 - full unit, API, migration, authorization, E2E, responsive, and production smoke testing.
 
-For implementation phases and acceptance criteria, see [POST_TESTING_IMPLEMENTATION_PLAN.md](POST_TESTING_IMPLEMENTATION_PLAN.md).

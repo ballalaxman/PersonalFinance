@@ -24,6 +24,9 @@ not_found_handling = "single-page-application"
 # Production secret is stored securely using:
 # wrangler secret put JWT_SECRET
 # Set APP_ORIGIN to the exact production frontend origin.
+# Set ALLOWED_EMAILS (comma-separated) to restrict who can register, e.g.
+#   wrangler secret put ALLOWED_EMAILS   (or add it under [vars])
+# When unset, registration is open to anyone who can reach the app.
 
 [vars]
 APP_ORIGIN = "https://fintrack.ballalaxmanrao987.workers.dev"

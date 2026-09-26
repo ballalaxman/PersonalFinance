@@ -9,7 +9,7 @@ export const transactionSchema = z.object({
   account: z.string().min(1, 'Account is required'),
   tags: z.array(z.string()).default([]),
   receipt: z.boolean().default(false),
-  source: z.enum(['manual', 'csv', 'document', 'google-drive', 'recurring']).default('manual'),
+  source: z.enum(['manual', 'recurring']).default('manual'),
 })
 
 export type TransactionFormValues = z.infer<typeof transactionSchema>

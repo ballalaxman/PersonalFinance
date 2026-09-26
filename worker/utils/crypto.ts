@@ -138,10 +138,18 @@ export async function verifyJWT(token: string, secret: string): Promise<JWTPaylo
   const [headerB64, payloadB64, sigB64] = parts
   const key = await importHmacKey(secret)
 
+  // Malformed base64 makes atob throw; treat it as an invalid token, not a server error.
+  let signature: ArrayBuffer
+  try {
+    signature = base64UrlDecode(sigB64).buffer as ArrayBuffer
+  } catch {
+    return null
+  }
+
   const valid = await crypto.subtle.verify(
     'HMAC',
     key,
-    base64UrlDecode(sigB64).buffer as ArrayBuffer,
+    signature,
     new TextEncoder().encode(`${headerB64}.${payloadB64}`)
   )
   if (!valid) return null
@@ -153,7 +161,7 @@ export async function verifyJWT(token: string, secret: string): Promise<JWTPaylo
     return null
   }
 
-  if (Math.floor(Date.now() / 1000) > payload.exp) return null
+  if (typeof payload.exp !== 'number' || Math.floor(Date.now() / 1000) > payload.exp) return null
 
   return payload
 }

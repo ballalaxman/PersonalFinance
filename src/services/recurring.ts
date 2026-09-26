@@ -1,7 +1,11 @@
 import { api } from './api'
 import type { RecurringOccurrence, RecurringSchedule } from '@/types'
 
-export type RecurringScheduleInput = Omit<RecurringSchedule, 'id' | 'createdAt' | 'updatedAt'>
+// account/endDate accept null so an edit can clear a stored value
+export type RecurringScheduleInput = Omit<RecurringSchedule, 'id' | 'createdAt' | 'updatedAt' | 'account' | 'endDate'> & {
+  account?: string | null
+  endDate?: string | null
+}
 
 export const recurringService = {
   list: () => api.get<{ schedules: RecurringSchedule[]; occurrences: RecurringOccurrence[] }>('/api/recurring'),

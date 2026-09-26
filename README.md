@@ -1,10 +1,19 @@
 # FINTRACK
 
-FINTRACK is a private, responsive personal-finance application for recording income, expenses, and savings/investments; reviewing monthly cash flow; and managing budgets, goals, documents, and recurring payments.
+FINTRACK is a private, responsive personal-finance and habit-tracking application for recording income, expenses, and savings/investments; reviewing monthly cash flow; and managing budgets, goals, documents, and recurring payments.
 
 The application uses a React frontend with a Cloudflare Worker API. Structured data is stored in Cloudflare D1, while uploaded file bytes are stored privately in Cloudflare R2.
 
 ## Application features
+
+The app has two dashboards, switched with the **Finance / Habits** tabs in the header. Each has its own navigation; Settings is shared.
+
+### Habits
+
+- Create daily habits or habits with a weekly target (for example 3 days per week).
+- Check habits off from the Today view, or backfill any day of the current week.
+- See current and best streaks (days for daily habits, weeks for weekly ones), 30-day completion, and a 12-week activity heatmap.
+- Archive a habit to hide it while keeping its history, or delete it with its check-ins.
 
 ### Dashboard
 
@@ -20,14 +29,13 @@ The application uses a React frontend with a Cloudflare Worker API. Structured d
 - Search and filter transactions within the selected month by account, category, type, merchant, or tag.
 - Edit complete transactions in place, manage multiple tags, and delete transactions.
 - Prevent duplicate records using a transaction fingerprint.
-- Upload supported receipts and financial documents.
+- Attach a receipt when adding an entry; it is stored in the document vault.
 
 ### Recurring payments
 
-- Detect possible recurring transaction patterns.
-- Confirm or ignore detected patterns.
 - Schedule recurring income, expenses, and investments with due-date selection.
-- Confirm, skip, or postpone due occurrences before they become transactions.
+- Confirm (at the actual amount), skip, or postpone due occurrences before they become transactions.
+- Delete a schedule, or pause it from the edit form.
 
 ### Budgets and goals
 
@@ -46,6 +54,7 @@ The application uses a React frontend with a Cloudflare Worker API. Structured d
 - Upload receipts, invoices, statements, images, PDFs, and other supported files.
 - Store original file bytes privately in Cloudflare R2.
 - Store document metadata in Cloudflare D1.
+- Open stored documents from the vault (served only to their owner).
 
 ### Authentication and privacy
 
@@ -58,12 +67,12 @@ The application uses a React frontend with a Cloudflare Worker API. Structured d
 ## Technology
 
 - React 18, TypeScript, Vite, and Tailwind CSS
-- Zustand and TanStack Query
+- Zustand
 - Hono on Cloudflare Workers
 - Cloudflare D1 for structured data
 - Cloudflare R2 for original files
 - Zod for validation
-- Vitest and Playwright for testing
+- Vitest for testing
 - Wrangler for Worker development and deployment
 
 ## Project structure
@@ -124,12 +133,13 @@ npm run build        # Type-check and build
 npm run lint         # Run ESLint
 npm run format       # Format the repository
 npm run test         # Run unit tests
-npm run test:e2e     # Run Playwright tests
 npm run db:migrate   # Apply the local D1 schema
 npm run db:migrate:post-testing # Upgrade an existing local D1 database
 npm run db:migrate:post-testing:remote # Upgrade the configured remote D1 database
 npm run db:migrate:month-filtering # Add the local month-pagination index
 npm run db:migrate:month-filtering:remote # Add the production month-pagination index
+npm run db:migrate:habits # Add the habit tables locally
+npm run db:migrate:habits:remote # Add the habit tables in production
 npm run deploy       # Deploy with Wrangler
 ```
 
@@ -147,6 +157,7 @@ Configure the production secret, build, and deploy:
 ```bash
 npx wrangler secret put JWT_SECRET
 npx wrangler secret put VAPID_PRIVATE_KEY
+npx wrangler secret put ALLOWED_EMAILS   # comma-separated emails allowed to register
 npm run build
 npm run deploy
 ```
@@ -162,9 +173,5 @@ Before deploying, confirm that the D1 database ID and R2 bucket name in `wrangle
 - Browser storage is not the durable source of truth for financial data.
 - Every user-owned query must be scoped by the authenticated user's ID.
 - Do not seed sample financial records.
-
-## Planned changes
-
-Post-testing features, migrations, remaining improvements, scalability work, implementation phases, and acceptance criteria are maintained in [POST_TESTING_IMPLEMENTATION_PLAN.md](POST_TESTING_IMPLEMENTATION_PLAN.md).
 
 For feature usage, service connections, local setup, and deployment instructions, see [APPLICATION_GUIDE.md](APPLICATION_GUIDE.md).

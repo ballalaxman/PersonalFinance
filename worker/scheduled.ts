@@ -27,8 +27,9 @@ export async function processDueSchedules(env: Env, at = new Date()): Promise<{ 
   const result = await env.DB.prepare(
     "SELECT s.id,s.userId,s.amount,s.cadence,s.dayOfMonth,s.nextDueDate,s.endDate,st.value AS timezoneValue " +
     "FROM recurring_schedules s LEFT JOIN settings st ON st.userId=s.userId AND st.key='timezone' " +
-    'WHERE s.active=1 ORDER BY s.nextDueDate ASC LIMIT 500'
-  ).all<DueSchedule>()
+    // Only schedules that can be due in some timezone (UTC+14 is at most one day ahead).
+    'WHERE s.active=1 AND s.nextDueDate <= ?1 ORDER BY s.nextDueDate ASC LIMIT 500'
+  ).bind(new Date(at.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10)).all<DueSchedule>()
 
   let created = 0
   let advanced = 0

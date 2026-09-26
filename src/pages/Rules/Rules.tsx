@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Plus, Edit2, Trash2, ToggleLeft, ToggleRight, Tag, BookOpen } from 'lucide-react'
+import { Plus, Edit2, Trash2, Tag, BookOpen } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -9,11 +9,10 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { RuleFormModal } from './RuleFormModal'
 import { useAppStore } from '@/store/appStore'
 import { api } from '@/services/api'
-import { nanoid } from '@/utils/nanoid'
 import type { Rule, Tag as TagType } from '@/types'
 
 export default function Rules() {
-  const { state, updateSettings, addRule, updateRule, removeRule, addTag, removeTag } = useAppStore()
+  const { state, addRule, updateRule, removeRule, addTag, removeTag } = useAppStore()
   const [ruleFormOpen, setRuleFormOpen] = useState(false)
   const [editRule, setEditRule] = useState<Rule | null>(null)
   const [newTagName, setNewTagName] = useState('')

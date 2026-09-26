@@ -4,11 +4,13 @@ import type { Env } from '../index'
 import { buildFingerprint, normalizeTags } from '../utils/fingerprint'
 import { newId, now } from '../utils/id'
 import { decodeTransactionTags, serializeTransaction } from '../utils/transactions'
+import { applyRuleSet, type RuleRow } from '../utils/rules'
+import { isoDate } from '../utils/validation'
 
 export const transactionRoutes = new Hono<{ Bindings: Env }>()
 
 const txSchema = z.object({
-  date:     z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  date:     isoDate,
   merchant: z.string().min(1).max(200),
   category: z.string().min(1).default('Needs review'),
   amount:   z.number().positive(),
@@ -44,25 +46,19 @@ function decodeCursor(value: string): [string, string, string] | null {
   }
 }
 
-// Helper: apply only this user's enabled rules
+// Helper: apply this user's enabled rules, oldest first so later rules win
 async function applyRules(
   db: Env['DB'],
   userId: string,
   merchant: string,
-  category: string
-): Promise<string> {
+  category: string,
+  tags: string[]
+): Promise<{ category: string; tags: string[] }> {
   const rules = await db
-    .prepare('SELECT whenText, thenText FROM rules WHERE userId = ?1 AND enabled = 1')
+    .prepare('SELECT whenText, thenText FROM rules WHERE userId = ?1 AND enabled = 1 ORDER BY createdAt ASC, id ASC')
     .bind(userId)
-    .all<{ whenText: string; thenText: string }>()
-
-  let cat = category
-  for (const rule of rules.results ?? []) {
-    if (merchant.toLowerCase().includes(rule.whenText.toLowerCase())) {
-      if (!rule.thenText.startsWith('tag:')) cat = rule.thenText
-    }
-  }
-  return cat
+    .all<RuleRow>()
+  return applyRuleSet(rules.results ?? [], merchant, category, tags)
 }
 
 // GET /api/transactions — keyset-paginated history
@@ -94,8 +90,8 @@ transactionRoutes.get('/', async (c) => {
   if (startDate) add('date >= ?', startDate)
   if (endDate) add('date <= ?', endDate)
   if (search) {
-    conditions.push('(merchant LIKE ? OR category LIKE ? OR tags LIKE ?)')
-    const pattern = `%${search.replace(/%/g, '\\%').replace(/_/g, '\\_')}%`
+    conditions.push("(merchant LIKE ? ESCAPE '\\' OR category LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')")
+    const pattern = `%${search.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`
     values.push(pattern, pattern, pattern)
   }
 
@@ -157,7 +153,6 @@ transactionRoutes.post('/', async (c) => {
   }
 
   const data = parsed.data
-  const tags = normalizeTags(data.tags)
   // Fingerprint is scoped per user — same transaction can exist for different users
   const fingerprint = buildFingerprint(data.date, data.merchant, data.amount, data.account)
   const db = c.env.DB
@@ -169,7 +164,7 @@ transactionRoutes.post('/', async (c) => {
 
   if (existing) return c.json({ error: 'Duplicate transaction', duplicate: true }, 409)
 
-  const category = await applyRules(db, userId, data.merchant, data.category)
+  const { category, tags } = await applyRules(db, userId, data.merchant, data.category, normalizeTags(data.tags))
   const id = newId()
   const createdAt = now()
 
@@ -190,71 +185,6 @@ transactionRoutes.post('/', async (c) => {
       tags, receipt: data.receipt, source: data.source, fingerprint, createdAt,
     }
   }, 201)
-})
-
-// ─── POST /api/transactions/batch ────────────────────────────────────────────
-
-transactionRoutes.post('/batch', async (c) => {
-  return c.json({ error: 'CSV transaction import is disabled' }, 410)
-  /* Legacy implementation retained temporarily for rollback and historical audit.
-  const { id: userId } = c.get('user' as never) as { id: string }
-
-  let body: { transactions?: unknown[] }
-  try { body = await c.req.json() } catch {
-    return c.json({ error: 'Invalid JSON' }, 400)
-  }
-
-  if (!Array.isArray(body.transactions)) {
-    return c.json({ error: 'transactions array required' }, 400)
-  }
-
-  const db = c.env.DB
-  let inserted = 0, duplicates = 0, skipped = 0, needsReview = 0
-  const errors: string[] = []
-  const insertedTxns = []
-
-  for (const item of body.transactions) {
-    const parsed = txSchema.safeParse(item)
-    if (!parsed.success) {
-      skipped++
-      errors.push(`Invalid row: ${JSON.stringify(item).slice(0, 80)}`)
-      continue
-    }
-
-    const data = parsed.data
-    const tags = normalizeTags(data.tags)
-    const fingerprint = buildFingerprint(data.date, data.merchant, data.amount, data.account)
-
-    const existing = await db
-      .prepare('SELECT id FROM transactions WHERE userId = ?1 AND fingerprint = ?2')
-      .bind(userId, fingerprint)
-      .first<{ id: string }>()
-
-    if (existing) { duplicates++; continue }
-
-    const category = await applyRules(db, userId, data.merchant, data.category)
-    if (category === 'Needs review') needsReview++
-
-    const id = newId()
-    const createdAt = now()
-
-    try {
-      await db
-        .prepare(
-          'INSERT INTO transactions (id, userId, date, merchant, category, amount, type, account, tags, receipt, source, fingerprint, createdAt) ' +
-          'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)'
-        )
-        .bind(id, userId, data.date, data.merchant, category, data.amount, data.type,
-          data.account, JSON.stringify(tags), data.receipt ? 1 : 0, data.source, fingerprint, createdAt)
-        .run()
-      inserted++
-      insertedTxns.push({ id, userId, ...data, tags, fingerprint, createdAt, category })
-    } catch {
-      duplicates++ // race condition on unique constraint
-    }
-  }
-
-  return c.json({ inserted, duplicates, skipped, needsReview, errors, transactions: insertedTxns }) */
 })
 
 // ─── PATCH /api/transactions/:id ─────────────────────────────────────────────
@@ -328,6 +258,11 @@ transactionRoutes.delete('/:id', async (c) => {
 
   if (!existing) return c.json({ error: 'Not found' }, 404)
 
-  await db.prepare('DELETE FROM transactions WHERE id = ?1 AND userId = ?2').bind(id, userId).run()
+  // Confirmed recurring occurrences reference the transaction; unlink them first
+  // so the foreign key does not block the delete.
+  await db.batch([
+    db.prepare('UPDATE recurring_occurrences SET transactionId = NULL WHERE transactionId = ?1 AND userId = ?2').bind(id, userId),
+    db.prepare('DELETE FROM transactions WHERE id = ?1 AND userId = ?2').bind(id, userId),
+  ])
   return c.json({ success: true })
 })
