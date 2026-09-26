@@ -1,22 +1,20 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  IndianRupee, Tag, LayoutGrid, CreditCard, RefreshCw,
-  Trash2, RotateCcw, AlertTriangle, Bell
+  LayoutGrid, CreditCard, RefreshCw,
+  Trash2, AlertTriangle, Bell
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { Switch } from '@/components/ui/Switch'
 import { Badge } from '@/components/ui/Badge'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter
 } from '@/components/ui/Dialog'
 import { useAppStore } from '@/store/appStore'
-import { formatCurrency } from '@/utils/currency'
-import { formatDate } from '@/utils/dates'
+import { useHabitStore } from '@/store/habitStore'
 import { api } from '@/services/api'
 import { pushService } from '@/services/push'
 
@@ -25,9 +23,6 @@ export default function Settings() {
   const navigate = useNavigate()
 
   const settings = state?.settings
-  const [assets, setAssets] = useState(String(settings?.assets ?? 0))
-  const [liabilities, setLiabilities] = useState(String(settings?.liabilities ?? 0))
-  const [savingNW, setSavingNW] = useState(false)
   const [timezone, setTimezone] = useState(settings?.timezone ?? 'Asia/Kolkata')
   const [notificationState, setNotificationState] = useState(
     typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
@@ -42,23 +37,6 @@ export default function Settings() {
 
   const categories = settings?.categories ?? []
   const accounts = settings?.accounts ?? []
-  const dismissed = settings?.dismissedPatterns ?? []
-
-  // ─── Net Worth ──────────────────────────────────────────────────────────────
-
-  const handleSaveNetWorth = async () => {
-    const a = parseFloat(assets) || 0
-    const l = parseFloat(liabilities) || 0
-    setSavingNW(true)
-    try {
-      await updateSettings({ assets: a, liabilities: l, netWorthConfigured: true })
-      toast.success('Net worth saved')
-    } catch { /* handled */ } finally {
-      setSavingNW(false)
-    }
-  }
-
-  const liveNetWorth = (parseFloat(assets) || 0) - (parseFloat(liabilities) || 0)
 
   // ─── Categories ─────────────────────────────────────────────────────────────
 
@@ -102,15 +80,6 @@ export default function Settings() {
     } catch { /* handled */ }
   }
 
-  // ─── Detection ──────────────────────────────────────────────────────────────
-
-  const handleRestoreIgnored = async () => {
-    try {
-      await updateSettings({ dismissedPatterns: [] })
-      toast.success('Ignored suggestions restored')
-    } catch { /* handled */ }
-  }
-
   // ─── Data wipe ──────────────────────────────────────────────────────────────
 
   const handleWipe = async () => {
@@ -120,6 +89,7 @@ export default function Settings() {
       setWipeOpen(false)
       setWipeInput('')
       toast.success('All data erased. Starting fresh.')
+      useHabitStore.setState({ habits: [], done: {}, loaded: false })
       await loadState()
       navigate('/')
     } catch (err) {
@@ -137,44 +107,6 @@ export default function Settings() {
         <p className="text-sm text-muted-foreground">Configure your FinTrack workspace</p>
       </div>
 
-      {/* Legacy net-worth controls are retained temporarily for rollback but are not rendered. */}
-      {false && <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <IndianRupee className="h-4 w-4 text-violet-600" aria-hidden="true" />
-            Net worth
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Enter your total assets and liabilities. Net worth is assets minus liabilities — it is
-            not calculated from transaction cash flow.
-          </p>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Input
-              label="Total assets"
-              type="number"
-              step="0.01"
-              value={assets}
-              onChange={(e) => setAssets(e.target.value)}
-            />
-            <Input
-              label="Total liabilities"
-              type="number"
-              step="0.01"
-              value={liabilities}
-              onChange={(e) => setLiabilities(e.target.value)}
-            />
-          </div>
-          <div className="flex items-center justify-between rounded-xl bg-muted p-3">
-            <span className="text-sm font-medium">Net worth preview</span>
-            <span className={`text-lg font-bold ${liveNetWorth >= 0 ? 'text-foreground' : 'text-red-600'}`}>
-              {formatCurrency(liveNetWorth)}
-            </span>
-          </div>
-          <Button onClick={handleSaveNetWorth} loading={savingNW}>Save net worth</Button>
-        </CardContent>
-      </Card>}
 
       <Card>
         <CardHeader>
@@ -191,7 +123,7 @@ export default function Settings() {
             onChange={(e) => setTimezone(e.target.value)}
             placeholder="Asia/Kolkata"
           />
-          <Button onClick={() => updateSettings({ timezone })}>Save timezone</Button>
+          <Button onClick={async () => { try { await updateSettings({ timezone: timezone.trim() }); toast.success('Timezone saved') } catch { /* toast shown by the store */ } }}>Save timezone</Button>
         </CardContent>
       </Card>
 
@@ -199,8 +131,9 @@ export default function Settings() {
         <CardHeader><CardTitle className="flex items-center gap-2"><Bell className="h-4 w-4 text-violet-600" />Recurring reminders</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">Enable privacy-safe reminders on this browser. Financial amounts and account details are never shown in notification text.</p>
+          <p className="text-sm text-amber-700">Server-side delivery is not enabled yet: this registers the device, but reminders are not sent. Check the Recurring page for items that need confirmation.</p>
           <Badge variant={notificationState === 'granted' ? 'success' : notificationState === 'denied' ? 'warning' : 'secondary'}>{notificationState}</Badge>
-          <div className="flex gap-2"><Button onClick={async () => { try { await pushService.enable(); setNotificationState('granted'); toast.success('Recurring reminders enabled') } catch (e) { toast.error(e instanceof Error ? e.message : 'Unable to enable reminders') } }}>Enable reminders</Button><Button variant="outline" onClick={async () => { await pushService.disable(); setNotificationState(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission); toast.success('Reminders disabled on this device') }}>Disable on this device</Button></div>
+          <div className="flex gap-2"><Button onClick={async () => { try { await pushService.enable(); setNotificationState('granted'); toast.success('Recurring reminders enabled') } catch (e) { toast.error(e instanceof Error ? e.message : 'Unable to enable reminders') } }}>Enable reminders</Button><Button variant="outline" onClick={async () => { try { await pushService.disable(); setNotificationState(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission); toast.success('Reminders disabled on this device') } catch (e) { toast.error(e instanceof Error ? e.message : 'Unable to disable reminders') } }}>Disable on this device</Button></div>
         </CardContent>
       </Card>
 
@@ -280,35 +213,6 @@ export default function Settings() {
         </CardContent>
       </Card>
 
-      {/* Detection settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <RefreshCw className="h-4 w-4 text-violet-600" aria-hidden="true" />
-            Automatic detection
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            FinTrack analyses your expense transactions to find recurring payment patterns. It uses
-            merchant names, intervals, and amount variation to suggest recurring bills and
-            subscriptions. Suggestions require explicit approval — they are never auto-confirmed.
-          </p>
-          <div className="flex items-center justify-between rounded-xl bg-muted p-3">
-            <span className="text-sm">
-              Ignored suggestions:{' '}
-              <span className="font-semibold">{dismissed.length}</span>
-            </span>
-            {dismissed.length > 0 && (
-              <Button variant="outline" size="sm" onClick={handleRestoreIgnored}>
-                <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-                Restore ignored
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Danger zone */}
       <Card className="border-red-200">
         <CardHeader>
@@ -319,7 +223,7 @@ export default function Settings() {
         </CardHeader>
         <CardContent>
           <p className="mb-3 text-sm text-muted-foreground">
-            Permanently delete all transactions, documents, rules, tags, budgets, goals, and
+            Permanently delete all transactions, documents, rules, tags, budgets, goals, habits, and
             settings from FinTrack. Files stored outside FinTrack are not affected.
           </p>
           <Button variant="destructive" onClick={() => setWipeOpen(true)}>
@@ -343,6 +247,7 @@ export default function Settings() {
                 <li>All transactions</li>
                 <li>All documents (R2 copies)</li>
                 <li>All rules, tags, budgets, goals</li>
+                <li>All habits and check-ins</li>
                 <li>All settings</li>
               </ul>
               <p className="font-medium text-foreground">

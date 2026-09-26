@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type { Env } from '../index'
 import { buildFingerprint, normalizeTags } from '../utils/fingerprint'
 import { newId, now } from '../utils/id'
+import { isCalendarDate, isoDate } from '../utils/validation'
 
 export const recurringRoutes = new Hono<{ Bindings: Env }>()
 
@@ -13,10 +14,10 @@ const scheduleSchema = z.object({
   amount: z.number().positive(),
   account: z.string().trim().max(100).optional(),
   cadence: z.enum(['weekly', 'biweekly', 'monthly', 'quarterly', 'annual']),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startDate: isoDate,
   dayOfMonth: z.number().int().min(1).max(31).optional(),
-  nextDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  nextDueDate: isoDate,
+  endDate: isoDate.optional(),
   active: z.boolean().default(true),
   notifyDaysBefore: z.union([z.literal(0), z.literal(1), z.literal(3), z.literal(7)]).default(0),
 }).refine((v) => v.cadence !== 'monthly' || v.dayOfMonth !== undefined, {
@@ -24,6 +25,12 @@ const scheduleSchema = z.object({
 }).refine((v) => !v.endDate || v.endDate >= v.startDate, {
   message: 'End date must not be before start date', path: ['endDate'],
 })
+
+// D1 returns NULL for unset optional columns; Zod's .optional() only accepts undefined.
+function withoutNulls(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object') return {}
+  return Object.fromEntries(Object.entries(value).filter(([, v]) => v !== null && v !== ''))
+}
 
 recurringRoutes.get('/', async (c) => {
   const { id: userId } = c.get('user' as never) as { id: string }
@@ -41,7 +48,7 @@ recurringRoutes.get('/', async (c) => {
 
 recurringRoutes.post('/', async (c) => {
   const { id: userId } = c.get('user' as never) as { id: string }
-  const parsed = scheduleSchema.safeParse(await c.req.json().catch(() => null))
+  const parsed = scheduleSchema.safeParse(withoutNulls(await c.req.json().catch(() => null)))
   if (!parsed.success) return c.json({ error: 'Validation failed', details: parsed.error.flatten() }, 422)
   const data = parsed.data
   const id = newId()
@@ -61,7 +68,11 @@ recurringRoutes.patch('/:id', async (c) => {
     .bind(id, userId).first<Record<string, unknown>>()
   if (!existing) return c.json({ error: 'Not found' }, 404)
   const body = await c.req.json().catch(() => null) as Record<string, unknown> | null
-  const parsed = scheduleSchema.safeParse({ ...existing, ...(body ?? {}), active: body?.active ?? Boolean(existing.active) })
+  // Fields the client explicitly cleared (null or '') must stay cleared, not fall back to the stored value.
+  const cleared = Object.entries(body ?? {}).filter(([, v]) => v === null || v === '').map(([k]) => k)
+  const merged = { ...withoutNulls(existing), ...withoutNulls(body), active: body?.active ?? Boolean(existing.active) } as Record<string, unknown>
+  for (const key of cleared) delete merged[key]
+  const parsed = scheduleSchema.safeParse(merged)
   if (!parsed.success) return c.json({ error: 'Validation failed', details: parsed.error.flatten() }, 422)
   const data = parsed.data
   const ts = now()
@@ -73,17 +84,20 @@ recurringRoutes.patch('/:id', async (c) => {
   return c.json({ schedule: { id, ...data, createdAt: existing.createdAt, updatedAt: ts } })
 })
 
+// Deletes the schedule and its occurrences (ON DELETE CASCADE). Transactions
+// already created from confirmed occurrences are kept. Pausing is done by
+// PATCHing active=false.
 recurringRoutes.delete('/:id', async (c) => {
   const { id: userId } = c.get('user' as never) as { id: string }
-  const result = await c.env.DB.prepare('UPDATE recurring_schedules SET active = 0, updatedAt = ?1 WHERE id = ?2 AND userId = ?3')
-    .bind(now(), c.req.param('id'), userId).run()
+  const result = await c.env.DB.prepare('DELETE FROM recurring_schedules WHERE id = ?1 AND userId = ?2')
+    .bind(c.req.param('id'), userId).run()
   if (!result.meta.changes) return c.json({ error: 'Not found' }, 404)
   return c.json({ success: true })
 })
 
 const confirmSchema = z.object({
   existingTransactionId: z.string().optional(),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date: isoDate.optional(),
   merchant: z.string().trim().min(1).max(200).optional(),
   category: z.string().trim().min(1).optional(),
   amount: z.number().positive().optional(),
@@ -152,7 +166,7 @@ recurringRoutes.post('/occurrences/:id/skip', async (c) => {
 recurringRoutes.post('/occurrences/:id/postpone', async (c) => {
   const { id: userId } = c.get('user' as never) as { id: string }
   const body = await c.req.json().catch(() => null) as { postponedUntil?: string } | null
-  if (!body?.postponedUntil || !/^\d{4}-\d{2}-\d{2}$/.test(body.postponedUntil)) {
+  if (!body?.postponedUntil || !isCalendarDate(body.postponedUntil)) {
     return c.json({ error: 'Valid postponedUntil is required' }, 422)
   }
   const result = await c.env.DB.prepare("UPDATE recurring_occurrences SET status='postponed',postponedUntil=?1 WHERE id=?2 AND userId=?3 AND status IN ('pending','postponed')")

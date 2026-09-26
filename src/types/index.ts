@@ -1,7 +1,7 @@
 // ─── Core Domain Types ────────────────────────────────────────────────────────
 
 export type TransactionType = 'expense' | 'income' | 'investment'
-export type TransactionSource = 'manual' | 'csv' | 'document' | 'google-drive' | 'recurring'
+export type TransactionSource = 'manual' | 'recurring'
 
 export interface Transaction {
   id: string
@@ -19,7 +19,7 @@ export interface Transaction {
 }
 
 export type DocumentStatus = 'queued' | 'stored' | 'review'
-export type DocumentSource = 'upload' | 'google-drive'
+export type DocumentSource = 'upload'
 
 export interface Document {
   id: string
@@ -73,17 +73,6 @@ export interface Goal {
 
 export type RecurringCadence = 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'annual'
 
-export interface RecurringPayment {
-  id: string
-  name: string
-  category: string
-  amount: number
-  cadence: RecurringCadence
-  nextDate: string
-  account?: string
-  active: boolean
-}
-
 export type RecurringOccurrenceStatus = 'pending' | 'confirmed' | 'skipped' | 'postponed'
 
 export interface RecurringSchedule {
@@ -118,35 +107,6 @@ export interface RecurringOccurrence {
   resolvedAt?: string
 }
 
-export interface Subscription {
-  id: string
-  name: string
-  category: string
-  amount: number
-  cadence: RecurringCadence
-  nextDate: string
-  account?: string
-  active: boolean
-}
-
-// ─── Detection Types ──────────────────────────────────────────────────────────
-
-export type RecurringConfidence = 'high' | 'likely'
-
-export interface RecurringSuggestion {
-  key: string // normalized merchant + cadence
-  merchant: string // normalized display name
-  category: string
-  cadence: RecurringCadence
-  averageAmount: number
-  monthlyEquivalent: number
-  occurrenceCount: number
-  confidence: RecurringConfidence
-  nextExpectedDate: string
-  isSubscription: boolean
-  transactionIds: string[]
-}
-
 // ─── API State ────────────────────────────────────────────────────────────────
 
 export interface AppSettings {
@@ -154,36 +114,9 @@ export interface AppSettings {
   accounts: string[]
   goals: Goal[]
   budgets: Budget[]
-  subscriptions: Subscription[]
-  recurring: RecurringPayment[]
-  dismissedPatterns: string[]
-  assets: number
-  liabilities: number
-  netWorthConfigured: boolean
   selectedPeriod: DatePeriod
   selectedMonth: string
   timezone: string
-  driveFolder?: DriveFolderMeta
-  driveSync?: DriveSyncMeta
-  freshStart?: boolean
-  driveResetAt?: string
-}
-
-export interface DriveFolderMeta {
-  id: string
-  name: string
-  url: string
-}
-
-export interface DriveSyncMeta {
-  lastSyncedAt?: string
-  status?: 'complete' | 'partial' | 'error' | 'idle'
-  imported: number
-  duplicates: number
-  filesStored: number
-  filesReview: number
-  errors: string[]
-  processedFileIds: string[]
 }
 
 export interface AppState {
@@ -197,20 +130,26 @@ export interface AppState {
   pendingRecurringCount: number
 }
 
-// ─── Import Types ─────────────────────────────────────────────────────────────
+// ─── Habits ───────────────────────────────────────────────────────────────────
 
-// ─── Chart / UI Types ─────────────────────────────────────────────────────────
+export type HabitFrequency = 'daily' | 'weekly'
+export type HabitColor = 'violet' | 'emerald' | 'sky' | 'amber' | 'rose' | 'slate'
 
-export interface CashFlowPoint {
-  month: string
-  income: number
-  expenses: number
-  investments: number
+export interface Habit {
+  id: string
+  name: string
+  description: string
+  color: HabitColor
+  frequency: HabitFrequency
+  /** Days per week that count as done; always 7 for daily habits. */
+  targetPerWeek: number
+  archived: boolean
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
 }
 
-export interface CategorySpend {
-  category: string
-  amount: number
-  percentage: number
-  color: string
+export interface HabitLog {
+  habitId: string
+  date: string // YYYY-MM-DD
 }

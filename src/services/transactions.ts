@@ -1,5 +1,6 @@
 import { api } from './api'
-import type { Transaction, TransactionType } from '@/types'
+import { documentsService } from './documents'
+import type { Document, Transaction, TransactionType } from '@/types'
 
 export interface CreateTransactionInput {
   date: string
@@ -44,15 +45,17 @@ export const transactionsService = {
     Object.entries(query).forEach(([key, value]) => value !== undefined && key !== 'limit' && params.set(key, String(value)))
     return api.get(`/api/transactions?${params.toString()}`)
   },
-  async create(input: CreateTransactionInput): Promise<{ transaction: Transaction }> {
-    // If there's a receipt file, upload via multipart
-    if (input.receiptFile) {
-      const fd = new FormData()
-      fd.append('transaction', JSON.stringify({ ...input, receiptFile: undefined }))
-      fd.append('receipt', input.receiptFile)
-      return api.upload('/api/transactions', fd)
+  async create(input: CreateTransactionInput): Promise<{ transaction: Transaction; receiptDocument?: Document }> {
+    const { receiptFile, ...transaction } = input
+    // The transactions endpoint only accepts JSON, so store the receipt in the
+    // document vault first and then record the transaction.
+    if (receiptFile) {
+      const { documents, errors } = await documentsService.upload([receiptFile])
+      if (!documents.length) throw new Error(errors[0] ?? 'Receipt upload failed')
+      const result = await api.post<{ transaction: Transaction }>('/api/transactions', { ...transaction, receipt: true })
+      return { ...result, receiptDocument: documents[0] }
     }
-    return api.post('/api/transactions', input)
+    return api.post('/api/transactions', transaction)
   },
 
   async update(id: string, input: UpdateTransactionInput): Promise<{ transaction: Transaction }> {

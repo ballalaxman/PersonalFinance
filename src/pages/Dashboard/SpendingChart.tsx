@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react'
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { formatCurrency } from '@/utils/currency'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PieChart as PieIcon } from 'lucide-react'
@@ -46,7 +46,7 @@ export function SpendingChart({ categories }: SpendingChartProps) {
             outerRadius={85}
             paddingAngle={2}
           >
-            {data.map((entry, i) => (
+            {data.map((entry) => (
               <Cell key={entry.category} fill={entry.color} />
             ))}
           </Pie>

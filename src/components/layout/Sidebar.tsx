@@ -1,30 +1,12 @@
 import React from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import {
-  LayoutDashboard,
-  Receipt,
-  RefreshCw,
-  PiggyBank,
-  Target,
-  FileText,
-  BookOpen,
-  Settings,
-} from 'lucide-react'
+import { NAV, isNavActive, useWorkspace } from './navigation'
+import { PiggyBank } from 'lucide-react'
 import { cn } from '@/utils/cn'
-
-const NAV_ITEMS = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/transactions', label: 'Transactions', icon: Receipt },
-  { to: '/recurring', label: 'Recurring', icon: RefreshCw },
-  { to: '/budgets', label: 'Budgets', icon: PiggyBank },
-  { to: '/goals', label: 'Goals', icon: Target },
-  { to: '/documents', label: 'Documents', icon: FileText },
-  { to: '/rules', label: 'Rules', icon: BookOpen },
-  { to: '/settings', label: 'Settings', icon: Settings },
-]
 
 export function Sidebar() {
   const location = useLocation()
+  const workspace = useWorkspace()
 
   return (
     <aside className="hidden lg:flex h-full w-[238px] flex-shrink-0 flex-col border-r border-border bg-card">
@@ -39,16 +21,15 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4 px-3" aria-label="Main navigation">
+      <nav className="flex-1 overflow-y-auto py-4 px-3" aria-label={workspace === 'habits' ? 'Habits navigation' : 'Finance navigation'}>
         <ul className="space-y-0.5" role="list">
-          {NAV_ITEMS.map(({ to, label, icon: Icon }) => {
-            const isActive =
-              to === '/' ? location.pathname === '/' : location.pathname.startsWith(to)
+          {NAV[workspace].map(({ to, label, icon: Icon }) => {
+            const isActive = isNavActive(to, location.pathname)
             return (
               <li key={to}>
                 <NavLink
                   to={to}
-                  end={to === '/'}
+                  end={to === '/' || to === '/habits'}
                   className={cn(
                     'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
                     isActive

@@ -22,6 +22,15 @@ const loginSchema = z.object({
   password: z.string().min(1),
 })
 
+/**
+ * When ALLOWED_EMAILS is set (comma-separated), only those addresses may
+ * register. Unset keeps registration open, e.g. for local development.
+ */
+export function isRegistrationAllowed(email: string, allowList: string | undefined): boolean {
+  if (!allowList?.trim()) return true
+  return allowList.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean).includes(email.toLowerCase())
+}
+
 // ─── POST /api/auth/register ─────────────────────────────────────────────────
 
 authRoutes.post('/register', async (c) => {
@@ -40,6 +49,10 @@ authRoutes.post('/register', async (c) => {
   const { name, email, password } = parsed.data
   const db = c.env.DB
 
+  if (!isRegistrationAllowed(email, c.env.ALLOWED_EMAILS)) {
+    return c.json({ error: 'Registration is restricted for this FinTrack instance' }, 403)
+  }
+
   // Check for existing account — use same error message to prevent email enumeration
   const existing = await db
     .prepare('SELECT id FROM users WHERE email = ?1')
@@ -54,10 +67,18 @@ authRoutes.post('/register', async (c) => {
   const passwordHash = await hashPassword(password)
   const createdAt = now()
 
-  await db
-    .prepare('INSERT INTO users (id, email, name, passwordHash, createdAt) VALUES (?1, ?2, ?3, ?4, ?5)')
-    .bind(id, email, name, passwordHash, createdAt)
-    .run()
+  try {
+    await db
+      .prepare('INSERT INTO users (id, email, name, passwordHash, createdAt) VALUES (?1, ?2, ?3, ?4, ?5)')
+      .bind(id, email, name, passwordHash, createdAt)
+      .run()
+  } catch (error) {
+    // Two concurrent sign-ups with the same email: the UNIQUE constraint wins.
+    if (String(error).toLowerCase().includes('unique')) {
+      return c.json({ error: 'An account with this email already exists' }, 409)
+    }
+    throw error
+  }
 
   // Seed default settings for the new user
   await initEmptyState(db, id)

@@ -9,7 +9,6 @@ import { GoalFormModal } from './GoalFormModal'
 import { useAppStore } from '@/store/appStore'
 import { formatCurrency, formatPercent } from '@/utils/currency'
 import { formatDate } from '@/utils/dates'
-import { nanoid } from '@/utils/nanoid'
 import type { Goal } from '@/types'
 
 export default function Goals() {

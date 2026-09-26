@@ -1,48 +1,61 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Plus, Edit2, Trash2, PiggyBank, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Progress } from '@/components/ui/Progress'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { BudgetFormModal } from './BudgetFormModal'
 import { useAppStore } from '@/store/appStore'
-import { filterByPeriod, getDateRange } from '@/utils/dates'
+import { currentMonth, formatMonthLabel, monthDateRange } from '@/utils/dates'
 import { formatCurrency, formatPercent } from '@/utils/currency'
-import { startOfMonth, endOfMonth } from 'date-fns'
-import type { Budget, Transaction } from '@/types'
-import { nanoid } from '@/utils/nanoid'
+import { dashboardService } from '@/services/dashboard'
+import type { Budget } from '@/types'
 
 export default function Budgets() {
   const { state, updateSettings } = useAppStore()
   const [formOpen, setFormOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Budget | null>(null)
 
-  const budgets = state?.settings.budgets ?? []
-  const transactions = state?.transactions ?? []
+  const budgets = useMemo(() => state?.settings.budgets ?? [], [state?.settings.budgets])
+  const month = currentMonth()
+  // Expense totals per category for the whole current month, aggregated on the
+  // server — the client transaction cache only holds one (possibly filtered) page.
+  const [spendByCategory, setSpendByCategory] = useState<Record<string, number>>({})
+  const [spendError, setSpendError] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  // Budgets always calculated against the current month
-  const thisMonthTransactions = useMemo(() => {
-    const now = new Date()
-    return transactions.filter((t) => {
-      return t.date >= startOfMonth(now).toISOString().split('T')[0] &&
-             t.date <= endOfMonth(now).toISOString().split('T')[0]
-    })
-  }, [transactions])
+  useEffect(() => {
+    let cancelled = false
+    const { startDate, endDate } = monthDateRange(month)
+    dashboardService.get(startDate, endDate)
+      .then((data) => {
+        if (cancelled) return
+        setSpendByCategory(Object.fromEntries(data.categories.map((c) => [c.category, Number(c.amount)])))
+        setSpendError(false)
+      })
+      .catch(() => { if (!cancelled) setSpendError(true) })
+    return () => { cancelled = true }
+  }, [month, refreshKey])
+
+  useEffect(() => {
+    const refresh = () => setRefreshKey((value) => value + 1)
+    window.addEventListener('fintrack:transactions-changed', refresh)
+    return () => window.removeEventListener('fintrack:transactions-changed', refresh)
+  }, [])
 
   const budgetData = useMemo(() =>
     budgets.map((b) => {
-      const spent = thisMonthTransactions
-        .filter((t) => t.type === 'expense' && t.category === b.category)
-        .reduce((s, t) => s + t.amount, 0)
+      const spent = spendByCategory[b.category] ?? 0
       const pct = b.monthlyLimit > 0 ? Math.min((spent / b.monthlyLimit) * 100, 100) : 0
       return { ...b, spent, pct, remaining: b.monthlyLimit - spent, overBudget: spent > b.monthlyLimit }
-    }), [budgets, thisMonthTransactions])
+    }), [budgets, spendByCategory])
 
-  const overBudgetCount = budgetData.filter((b) => b.overBudget && b.active).length
-  const healthScore = budgets.length > 0
-    ? Math.round(((budgets.length - overBudgetCount) / budgets.length) * 100)
+  const activeBudgets = budgetData.filter((b) => b.active)
+  const overBudgetCount = activeBudgets.filter((b) => b.overBudget).length
+  const healthScore = activeBudgets.length > 0
+    ? Math.round(((activeBudgets.length - overBudgetCount) / activeBudgets.length) * 100)
     : 0
 
   const handleSave = async (budget: Budget) => {
@@ -68,7 +81,7 @@ export default function Budgets() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Budgets</h1>
-          <p className="text-sm text-muted-foreground">Monthly spending limits</p>
+          <p className="text-sm text-muted-foreground">Monthly spending limits · {formatMonthLabel(month)}</p>
         </div>
         <Button onClick={() => { setEditTarget(null); setFormOpen(true) }}>
           <Plus className="h-4 w-4" aria-hidden="true" />
@@ -76,8 +89,15 @@ export default function Budgets() {
         </Button>
       </div>
 
+      {spendError && (
+        <div role="alert" className="flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
+          <span>Couldn't load this month's spending, so the figures below may be incomplete.</span>
+          <Button size="sm" variant="outline" onClick={() => setRefreshKey((value) => value + 1)}>Retry</Button>
+        </div>
+      )}
+
       {/* Health summary */}
-      {budgets.length > 0 && (
+      {activeBudgets.length > 0 && (
         <Card className={overBudgetCount > 0 ? 'border-orange-200 bg-orange-50' : 'border-emerald-200 bg-emerald-50'}>
           <CardContent className="flex items-center gap-4 py-4">
             {overBudgetCount > 0 ? (
@@ -144,7 +164,7 @@ export default function Budgets() {
                   aria-label={`${b.category} budget: ${b.pct.toFixed(0)}%`}
                 />
 
-                <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="grid grid-cols-3 gap-2 text-center tabular-nums [&_p.font-semibold]:text-[13px] [&_p.font-semibold]:leading-snug [&_p.font-semibold]:[overflow-wrap:anywhere]">
                   <div>
                     <p className="text-xs text-muted-foreground">Spent</p>
                     <p className="text-sm font-semibold">{formatCurrency(b.spent)}</p>

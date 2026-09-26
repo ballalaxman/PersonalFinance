@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
@@ -31,7 +31,7 @@ interface AddEntryModalProps {
 }
 
 export function AddEntryModal({ open, onClose }: AddEntryModalProps) {
-  const { state, addTransaction } = useAppStore()
+  const { state, addTransaction, addDocument } = useAppStore()
   const [tagInput, setTagInput] = useState('')
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
 
@@ -54,6 +54,12 @@ export function AddEntryModal({ open, onClose }: AddEntryModalProps) {
     },
   })
 
+  // Re-read today's date each time the modal opens, so a tab left open overnight
+  // doesn't default new entries to yesterday.
+  useEffect(() => {
+    if (open) setValue('date', today())
+  }, [open, setValue])
+
   const watchTags = watch('tags') ?? []
   const watchReceipt = watch('receipt')
 
@@ -66,11 +72,12 @@ export function AddEntryModal({ open, onClose }: AddEntryModalProps) {
 
   const onSubmit = async (data: TransactionFormValues) => {
     try {
-      const { transaction } = await transactionsService.create({
+      const { transaction, receiptDocument } = await transactionsService.create({
         ...data,
-        receiptFile: receiptFile ?? undefined,
+        receiptFile: data.receipt ? receiptFile ?? undefined : undefined,
       })
       addTransaction(transaction)
+      if (receiptDocument) addDocument(receiptDocument)
       window.dispatchEvent(new Event('fintrack:transactions-changed'))
       toast.success('Transaction added')
       handleClose()

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Upload, FileText, Trash2, AlertCircle } from 'lucide-react'
+import { Upload, FileText, Trash2, AlertCircle, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -51,7 +51,23 @@ export default function Documents() {
     }
   }
 
+  const handleOpen = async (doc: Document) => {
+    // Open the tab synchronously (inside the click) so popup blockers allow it, then fill it.
+    const tab = window.open('', '_blank')
+    try {
+      const blob = await documentsService.download(doc.id)
+      const url = URL.createObjectURL(blob)
+      if (tab) tab.location.href = url
+      else window.location.assign(url)
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (err) {
+      tab?.close()
+      toast.error(err instanceof Error ? err.message : 'Failed to open document')
+    }
+  }
+
   const handleDelete = async (doc: Document) => {
+    if (!window.confirm(`Permanently delete "${doc.filename}"?`)) return
     try {
       await documentsService.delete(doc.id)
       removeDocument(doc.id)
@@ -92,7 +108,7 @@ export default function Documents() {
           </CardHeader>
           <CardContent>
             <p className="mb-3 text-sm text-muted-foreground">
-              PDF, images, CSV, spreadsheets — up to {MAX_FILE_SIZE_MB} MB each.
+              PDF, JPEG, PNG, WebP or GIF, up to {MAX_FILE_SIZE_MB} MB each.
             </p>
             {uploadError && (
               <div className="mb-3 flex gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700">
@@ -151,15 +167,23 @@ export default function Documents() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{doc.filename}</p>
                       <p className="text-xs text-muted-foreground">
-                        {formatDate(doc.createdAt.split('T')[0])} · {doc.source === 'google-drive' ? 'Drive' : 'Upload'} · {formatBytes(doc.size)}
+                        {formatDate(doc.createdAt.split('T')[0])} · {formatBytes(doc.size)}
                       </p>
                     </div>
                     <Badge variant={statusVariant(doc.status)} className="hidden sm:inline-flex capitalize">
                       {doc.status}
                     </Badge>
                     <button
+                      onClick={() => handleOpen(doc)}
+                      className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-violet-600 hover:bg-violet-50 transition-all"
+                      aria-label={`Open ${doc.filename}`}
+                      title="Open"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                    <button
                       onClick={() => handleDelete(doc)}
-                      className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-50 transition-all"
+                      className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 hover:text-red-500 hover:bg-red-50 transition-all"
                       aria-label={`Delete ${doc.filename}`}
                     >
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />

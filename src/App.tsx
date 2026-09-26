@@ -20,18 +20,20 @@ const Goals          = lazy(() => import('@/pages/Goals/Goals'))
 const Documents      = lazy(() => import('@/pages/Documents/Documents'))
 const Rules          = lazy(() => import('@/pages/Rules/Rules'))
 const Settings       = lazy(() => import('@/pages/Settings/Settings'))
+const HabitDashboard = lazy(() => import('@/pages/Habits/HabitDashboard'))
+const ManageHabits   = lazy(() => import('@/pages/Habits/ManageHabits'))
 
 // ─── AppInitializer ──────────────────────────────────────────────────────────
 // Runs after auth is confirmed. Loads app data and shows a spinner while doing so.
 
 function AppInitializer({ children }: { children: React.ReactNode }) {
-  const { loadState, isLoading, error } = useAppStore()
+  const { loadState, isLoading, error, state } = useAppStore()
 
   useEffect(() => {
     loadState()
   }, [loadState])
 
-  if (isLoading) {
+  if (isLoading || (!state && !error)) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
@@ -109,12 +111,13 @@ export default function App() {
             <Route index element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
             <Route path="transactions"  element={<Suspense fallback={<PageLoader />}><Transactions /></Suspense>} />
             <Route path="recurring"     element={<Suspense fallback={<PageLoader />}><Recurring /></Suspense>} />
-            <Route path="subscriptions" element={<Navigate to="/recurring" replace />} />
             <Route path="budgets"       element={<Suspense fallback={<PageLoader />}><Budgets /></Suspense>} />
             <Route path="goals"         element={<Suspense fallback={<PageLoader />}><Goals /></Suspense>} />
             <Route path="documents"     element={<Suspense fallback={<PageLoader />}><Documents /></Suspense>} />
             <Route path="rules"         element={<Suspense fallback={<PageLoader />}><Rules /></Suspense>} />
             <Route path="settings"      element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
+            <Route path="habits"        element={<Suspense fallback={<PageLoader />}><HabitDashboard /></Suspense>} />
+            <Route path="habits/manage" element={<Suspense fallback={<PageLoader />}><ManageHabits /></Suspense>} />
             <Route path="*"             element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

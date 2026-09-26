@@ -8,7 +8,6 @@ import {
   startOfYear,
   endOfYear,
   parseISO,
-  isWithinInterval,
   format,
   isValid,
   addMonths,
@@ -106,32 +105,6 @@ export function shiftMonth(month: string, delta: number): string {
   return format(shifted, 'yyyy-MM')
 }
 
-// ─── Client-side filter helper ────────────────────────────────────────────────
-
-/**
- * Filter an array of dated items by a DatePeriod.
- * Used for client-side filtering on non-dashboard pages.
- */
-export function filterByPeriod<T extends { date: string }>(
-  items: T[],
-  period: DatePeriod,
-  selectedMonth?: string
-): T[] {
-  let range: DateRange
-
-  if (period === 'specific-month' && selectedMonth) {
-    const { startDate, endDate } = monthDateRange(selectedMonth)
-    range = { start: parseISO(startDate), end: parseISO(endDate) }
-  } else {
-    range = getDateRange(period)
-  }
-
-  return items.filter((item) => {
-    const d = parseISO(item.date)
-    return isValid(d) && isWithinInterval(d, { start: range.start, end: range.end })
-  })
-}
-
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
 export function formatDate(dateStr: string, fmt = 'MMM d, yyyy'): string {
@@ -168,15 +141,6 @@ export function formatMonthLabel(month: string): string {
 }
 
 // ─── Period metadata ──────────────────────────────────────────────────────────
-
-export const PERIOD_LABELS: Record<DatePeriod, string> = {
-  'this-month':     'This month',
-  'last-month':     'Last month',
-  'last-quarter':   'Last quarter',
-  'last-6-months':  'Last 6 months',
-  'this-year':      'This year',
-  'specific-month': 'Specific month',
-}
 
 export const PERIOD_OPTIONS: { value: DatePeriod; label: string }[] = [
   { value: 'this-month',     label: 'This month'    },
