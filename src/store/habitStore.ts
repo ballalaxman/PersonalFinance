@@ -24,6 +24,9 @@ export function habitCreatedDate(habit: Habit): string {
   return format(new Date(habit.createdAt), 'yyyy-MM-dd')
 }
 
+// Concurrent callers (page mount, background preload, StrictMode) share one request
+let inFlight: Promise<void> | null = null
+
 export const useHabitStore = create<HabitStore>((set, get) => ({
   habits: [],
   done: {},
@@ -31,16 +34,22 @@ export const useHabitStore = create<HabitStore>((set, get) => ({
   isLoading: false,
   error: null,
 
-  load: async () => {
+  load: () => {
+    if (inFlight) return inFlight
     set({ isLoading: true, error: null })
-    try {
-      const { habits, logs } = await habitsService.list()
-      const done: Record<string, Set<string>> = {}
-      for (const log of logs) (done[log.habitId] ??= new Set()).add(log.date)
-      set({ habits, done, loaded: true, isLoading: false })
-    } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to load habits', isLoading: false })
-    }
+    inFlight = (async () => {
+      try {
+        const { habits, logs } = await habitsService.list()
+        const done: Record<string, Set<string>> = {}
+        for (const log of logs) (done[log.habitId] ??= new Set()).add(log.date)
+        set({ habits, done, loaded: true, isLoading: false })
+      } catch (err) {
+        set({ error: err instanceof Error ? err.message : 'Failed to load habits', isLoading: false })
+      } finally {
+        inFlight = null
+      }
+    })()
+    return inFlight
   },
 
   // Optimistic: flip locally, roll back if the server rejects it

@@ -23,6 +23,9 @@ import { computeCashFlow } from '@/utils/cashflow'
 import type { Transaction } from '@/types'
 import { transactionsService, type TransactionListQuery, type TransactionTotals } from '@/services/transactions'
 
+// Last totals per filter set, so coming back to the page shows real figures instead of ₹0.00 while it reloads
+const totalsCache = new Map<string, TransactionTotals>()
+
 export default function Transactions() {
   const { state, replaceTransactions, appendTransactions } = useAppStore()
   const [search, setSearch] = useState('')
@@ -34,7 +37,7 @@ export default function Transactions() {
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [totals, setTotals] = useState<TransactionTotals>({ count: 0, income: 0, expense: 0, investment: 0 })
+  const [totals, setTotals] = useState<TransactionTotals | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
 
   // Same period resolution as the Dashboard, so the shared selector means the same thing on both pages
@@ -53,6 +56,7 @@ export default function Transactions() {
 
   useEffect(() => {
     let cancelled = false
+    setTotals(totalsCache.get(JSON.stringify(query)) ?? null)
     const timer = window.setTimeout(() => {
       transactionsService.list(query).then((page) => {
         if (cancelled) return
@@ -60,6 +64,7 @@ export default function Transactions() {
         setNextCursor(page.nextCursor)
         setHasMore(page.hasMore)
         setTotals(page.totals)
+        totalsCache.set(JSON.stringify(query), page.totals)
       }).catch(() => !cancelled && toast.error('Failed to load transactions'))
     }, query.search ? 250 : 0)
     return () => { cancelled = true; window.clearTimeout(timer) }
@@ -76,10 +81,12 @@ export default function Transactions() {
   const accounts = state?.settings.accounts ?? []
 
   const filtered = allTransactions
-  const totalIncome = totals.income
-  const totalExpense = totals.expense
-  const totalInvestment = totals.investment
-  const { cashSurplus } = computeCashFlow(totals)
+  const view = totals ?? { count: 0, income: 0, expense: 0, investment: 0 }
+  const totalIncome = view.income
+  const totalExpense = view.expense
+  const totalInvestment = view.investment
+  const { cashSurplus } = computeCashFlow(view)
+  const money = (value: number) => totals ? formatCurrency(value) : <span className="block h-6 w-20 animate-pulse rounded bg-muted" aria-hidden="true" />
 
   return (
     <div className="space-y-5">
@@ -87,7 +94,7 @@ export default function Transactions() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Transactions</h1>
-          <p className="text-sm text-muted-foreground">{totals.count} records</p>
+          <p className="text-sm text-muted-foreground">{totals ? `${totals.count} records` : 'Loading…'}</p>
         </div>
         <PeriodSelector />
       </div>
@@ -97,20 +104,20 @@ export default function Transactions() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-xl border border-border bg-card p-3">
             <p className="text-xs text-muted-foreground">Income</p>
-            <p className="text-lg font-bold text-emerald-600">{formatCurrency(totalIncome)}</p>
+            <p className="text-lg font-bold text-emerald-600">{money(totalIncome)}</p>
           </div>
           <div className="rounded-xl border border-border bg-card p-3">
             <p className="text-xs text-muted-foreground">Spending</p>
-            <p className="text-lg font-bold text-orange-500">{formatCurrency(totalExpense)}</p>
+            <p className="text-lg font-bold text-orange-500">{money(totalExpense)}</p>
           </div>
           <div className="rounded-xl border border-border bg-card p-3">
             <p className="text-xs text-muted-foreground">Invested</p>
-            <p className="text-lg font-bold text-blue-600">{formatCurrency(totalInvestment)}</p>
+            <p className="text-lg font-bold text-blue-600">{money(totalInvestment)}</p>
           </div>
           <div className="rounded-xl border border-border bg-card p-3">
             <p className="text-xs text-muted-foreground">Cash surplus</p>
             <p className={`text-lg font-bold ${cashSurplus >= 0 ? 'text-foreground' : 'text-red-600'}`}>
-              {formatCurrency(cashSurplus)}
+              {money(cashSurplus)}
             </p>
           </div>
         </div>

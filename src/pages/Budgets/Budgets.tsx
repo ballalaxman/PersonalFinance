@@ -22,7 +22,14 @@ export default function Budgets() {
   const month = currentMonth()
   // Expense totals per category for the whole current month, aggregated on the
   // server — the client transaction cache only holds one (possibly filtered) page.
-  const [spendByCategory, setSpendByCategory] = useState<Record<string, number>>({})
+  const toSpend = (data: { categories: { category: string; amount: number }[] }) =>
+    Object.fromEntries(data.categories.map((c) => [c.category, Number(c.amount)]))
+  // null until this month's spending has loaded (cached from a previous visit when available)
+  const [spendByCategory, setSpendByCategory] = useState<Record<string, number> | null>(() => {
+    const { startDate, endDate } = monthDateRange(month)
+    const cached = dashboardService.cached(startDate, endDate)
+    return cached ? toSpend(cached) : null
+  })
   const [spendError, setSpendError] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -32,7 +39,7 @@ export default function Budgets() {
     dashboardService.get(startDate, endDate)
       .then((data) => {
         if (cancelled) return
-        setSpendByCategory(Object.fromEntries(data.categories.map((c) => [c.category, Number(c.amount)])))
+        setSpendByCategory(toSpend(data))
         setSpendError(false)
       })
       .catch(() => { if (!cancelled) setSpendError(true) })
@@ -47,7 +54,7 @@ export default function Budgets() {
 
   const budgetData = useMemo(() =>
     budgets.map((b) => {
-      const spent = spendByCategory[b.category] ?? 0
+      const spent = spendByCategory?.[b.category] ?? 0
       const pct = b.monthlyLimit > 0 ? Math.min((spent / b.monthlyLimit) * 100, 100) : 0
       return { ...b, spent, pct, remaining: b.monthlyLimit - spent, overBudget: spent > b.monthlyLimit }
     }), [budgets, spendByCategory])
@@ -98,7 +105,7 @@ export default function Budgets() {
       )}
 
       {/* Health summary */}
-      {activeBudgets.length > 0 && (
+      {activeBudgets.length > 0 && spendByCategory !== null && (
         <Card className={overBudgetCount > 0 ? 'border-orange-200 bg-orange-50' : 'border-emerald-200 bg-emerald-50'}>
           <CardContent className="flex items-center gap-4 py-4">
             {overBudgetCount > 0 ? (
@@ -168,7 +175,7 @@ export default function Budgets() {
                 <div className="grid grid-cols-3 gap-2 text-center tabular-nums [&_p.font-semibold]:text-[13px] [&_p.font-semibold]:leading-snug [&_p.font-semibold]:[overflow-wrap:anywhere]">
                   <div>
                     <p className="text-xs text-muted-foreground">Spent</p>
-                    <p className="text-sm font-semibold">{formatCurrency(b.spent)}</p>
+                    <p className="text-sm font-semibold">{spendByCategory === null ? '…' : formatCurrency(b.spent)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Limit</p>
@@ -177,8 +184,7 @@ export default function Budgets() {
                   <div>
                     <p className="text-xs text-muted-foreground">Left</p>
                     <p className={`text-sm font-semibold ${b.remaining < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                      {formatCurrency(Math.abs(b.remaining))}
-                      {b.remaining < 0 ? ' over' : ''}
+                      {spendByCategory === null ? '…' : <>{formatCurrency(Math.abs(b.remaining))}{b.remaining < 0 ? ' over' : ''}</>}
                     </p>
                   </div>
                 </div>

@@ -29,18 +29,21 @@ export default function Dashboard() {
   const { state } = useAppStore()
   const period       = state?.settings.selectedPeriod  ?? 'this-month'
   const selectedMonth = state?.settings.selectedMonth  ?? currentMonth()
-  const [data, setData] = useState<DashboardData>(EMPTY_DASHBOARD)
+  const { startDate, endDate } = useMemo(() => resolveDashboardRange(period, selectedMonth), [period, selectedMonth])
+  // null = nothing loaded for this period yet: show placeholders, never fake zeros
+  const [data, setData] = useState<DashboardData | null>(() => dashboardService.cached(startDate, endDate) ?? null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
-    const { startDate, endDate } = resolveDashboardRange(period, selectedMonth)
+    // Show the last known figures for this period straight away, then refresh them
+    setData(dashboardService.cached(startDate, endDate) ?? null)
     dashboardService.get(startDate, endDate)
       .then((result) => { if (!cancelled) { setData(result); setLoadError(null) } })
-      .catch((err) => { if (!cancelled) { setData(EMPTY_DASHBOARD); setLoadError(err instanceof Error ? err.message : 'Request failed') } })
+      .catch((err) => { if (!cancelled) { setData((prev) => prev ?? EMPTY_DASHBOARD); setLoadError(err instanceof Error ? err.message : 'Request failed') } })
     return () => { cancelled = true }
-  }, [period, selectedMonth, refreshKey])
+  }, [startDate, endDate, refreshKey])
 
   useEffect(() => {
     const refresh = () => setRefreshKey((value) => value + 1)
@@ -48,17 +51,22 @@ export default function Dashboard() {
     return () => window.removeEventListener('fintrack:transactions-changed', refresh)
   }, [])
 
-  const income      = data.summary.income
-  const spending    = data.summary.expense
-  const investments = data.summary.investment
+  const loading = data === null
+  const view = data ?? EMPTY_DASHBOARD
+  const money = (value: number) => loading ? <Skeleton className="h-6 w-24 sm:h-7 sm:w-32" /> : formatCurrency(value)
+  const count = (n: number) => loading ? '…' : `${n} transaction${n !== 1 ? 's' : ''}`
+
+  const income      = view.summary.income
+  const spending    = view.summary.expense
+  const investments = view.summary.investment
 
   const { cashSurplus, unallocated, savingsRate, investmentRate } = computeCashFlow({ income, expense: spending, investment: investments })
 
-  const recentActivity = data.recent
-  const needsReviewCount = data.summary.needsReviewCount
+  const recentActivity = view.recent
+  const needsReviewCount = view.summary.needsReviewCount
 
   // Category spending for insight
-  const topCategory = data.categories[0] ?? null
+  const topCategory = view.categories[0] ?? null
 
   // Upcoming confirmed recurring
   const upcomingRecurring = useMemo(() => {
@@ -97,7 +105,7 @@ export default function Dashboard() {
           iconBg="bg-violet-50"
         >
           <p className={`text-lg sm:text-2xl font-bold tabular-nums break-words ${cashSurplus >= 0 ? 'text-foreground' : 'text-red-600'}`}>
-            {formatCurrency(cashSurplus)}
+            {money(cashSurplus)}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             Income − expenses
@@ -110,9 +118,9 @@ export default function Dashboard() {
           icon={<TrendingUp className="h-5 w-5 text-emerald-600" aria-hidden="true" />}
           iconBg="bg-emerald-50"
         >
-          <p className="text-lg sm:text-2xl font-bold tabular-nums break-words text-emerald-600">{formatCurrency(income)}</p>
+          <p className="text-lg sm:text-2xl font-bold tabular-nums break-words text-emerald-600">{money(income)}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {data.summary.incomeCount} transaction{data.summary.incomeCount !== 1 ? 's' : ''}
+            {count(view.summary.incomeCount)}
           </p>
         </SummaryCard>
 
@@ -122,9 +130,9 @@ export default function Dashboard() {
           icon={<TrendingDown className="h-5 w-5 text-orange-500" aria-hidden="true" />}
           iconBg="bg-orange-50"
         >
-          <p className="text-lg sm:text-2xl font-bold tabular-nums break-words text-orange-500">{formatCurrency(spending)}</p>
+          <p className="text-lg sm:text-2xl font-bold tabular-nums break-words text-orange-500">{money(spending)}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {data.summary.expenseCount} transaction{data.summary.expenseCount !== 1 ? 's' : ''}
+            {count(view.summary.expenseCount)}
           </p>
         </SummaryCard>
 
@@ -134,7 +142,7 @@ export default function Dashboard() {
           icon={<IndianRupee className="h-5 w-5 text-blue-600" aria-hidden="true" />}
           iconBg="bg-blue-50"
         >
-          <p className="text-lg sm:text-2xl font-bold tabular-nums break-words text-blue-600">{formatCurrency(investments)}</p>
+          <p className="text-lg sm:text-2xl font-bold tabular-nums break-words text-blue-600">{money(investments)}</p>
           <p className="mt-1 text-xs text-muted-foreground">SIPs, EPF/PPF, stocks and deposits</p>
         </SummaryCard>
       </div>
@@ -146,26 +154,26 @@ export default function Dashboard() {
             <div>
               <p className="text-xs text-muted-foreground">Savings rate</p>
               <p className="text-xl font-bold text-violet-600">
-                {income > 0 ? `${savingsRate.toFixed(1)}%` : '0%'}
+                {loading ? <Skeleton className="h-6 w-16" /> : income > 0 ? `${savingsRate.toFixed(1)}%` : '0%'}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">% of income not spent</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Investment rate</p>
               <p className="text-xl font-bold text-blue-600">
-                {income > 0 ? `${investmentRate.toFixed(1)}%` : '0%'}
+                {loading ? <Skeleton className="h-6 w-16" /> : income > 0 ? `${investmentRate.toFixed(1)}%` : '0%'}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">% of income invested</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Unallocated savings</p>
               <p className={`text-xl font-bold ${unallocated >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                {formatCurrency(unallocated)}
+                {money(unallocated)}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">Cash surplus − investments</p>
             </div>
           </div>
-          {cashSurplus < 0 ? (
+          {loading ? null : cashSurplus < 0 ? (
             <p className="mt-3 text-sm text-red-600">
               Expenses exceed income this period.
             </p>
@@ -184,7 +192,7 @@ export default function Dashboard() {
             <CardTitle>Cash flow</CardTitle>
           </CardHeader>
           <CardContent>
-            <CashFlowChart points={data.daily} />
+            {loading ? <Skeleton className="h-[220px] w-full" /> : <CashFlowChart points={view.daily} />}
           </CardContent>
         </Card>
 
@@ -193,7 +201,7 @@ export default function Dashboard() {
             <CardTitle>Spending by category</CardTitle>
           </CardHeader>
           <CardContent>
-            <SpendingChart categories={data.categories} />
+            {loading ? <Skeleton className="h-[220px] w-full" /> : <SpendingChart categories={view.categories} />}
           </CardContent>
         </Card>
       </div>
@@ -204,7 +212,7 @@ export default function Dashboard() {
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between pb-3">
             <CardTitle>Recent activity</CardTitle>
-            {data.summary.count > 0 && (
+            {view.summary.count > 0 && (
               <Link
                 to="/transactions"
                 className="flex items-center gap-1 text-sm text-violet-600 hover:underline"
@@ -215,7 +223,9 @@ export default function Dashboard() {
             )}
           </CardHeader>
           <CardContent className="p-0">
-            {recentActivity.length === 0 ? (
+            {loading ? (
+              <div className="space-y-3 px-5 pb-5">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+            ) : recentActivity.length === 0 ? (
               <div className="px-5 pb-5">
                 <EmptyState
                   title="No transactions yet"
@@ -244,7 +254,9 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {data.summary.count === 0 ? (
+              {loading ? (
+                <Skeleton className="h-5 w-full" />
+              ) : view.summary.count === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   Import or add transactions to see insights.
                 </p>
@@ -361,4 +373,8 @@ function TransactionRow({ transaction: t }: { transaction: Transaction }) {
       </p>
     </li>
   )
+}
+
+function Skeleton({ className }: { className?: string }) {
+  return <span className={`block animate-pulse rounded-md bg-muted motion-reduce:animate-none ${className ?? ''}`} aria-hidden="true" />
 }

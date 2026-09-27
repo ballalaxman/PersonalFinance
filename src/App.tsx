@@ -3,25 +3,58 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { useAppStore } from '@/store/appStore'
 import { useAuthStore } from '@/store/authStore'
+import { useHabitStore } from '@/store/habitStore'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { PageLoader } from '@/components/ui/Spinner'
-import { lazy, Suspense } from 'react'
+import { lazy } from 'react'
 
 // Auth pages — eager loaded (small, needed before anything else)
 import LoginPage from '@/pages/Auth/LoginPage'
 import RegisterPage from '@/pages/Auth/RegisterPage'
 
-// App pages — lazy loaded for better initial performance
-const Dashboard      = lazy(() => import('@/pages/Dashboard/Dashboard'))
-const Transactions   = lazy(() => import('@/pages/Transactions/Transactions'))
-const Recurring      = lazy(() => import('@/pages/Recurring/Recurring'))
-const Budgets        = lazy(() => import('@/pages/Budgets/Budgets'))
-const Goals          = lazy(() => import('@/pages/Goals/Goals'))
-const Documents      = lazy(() => import('@/pages/Documents/Documents'))
-const Rules          = lazy(() => import('@/pages/Rules/Rules'))
-const Settings       = lazy(() => import('@/pages/Settings/Settings'))
-const HabitDashboard = lazy(() => import('@/pages/Habits/HabitDashboard'))
-const ManageHabits   = lazy(() => import('@/pages/Habits/ManageHabits'))
+// App pages — code-split, but rendered directly once their code is in memory
+type PageModule = { default: React.ComponentType }
+
+/**
+ * Like React.lazy, except that after the module has loaded (e.g. by the
+ * background preload) it renders synchronously. React.lazy always suspends on
+ * a component's first render, which flashes the loading spinner even when the
+ * code is already downloaded.
+ */
+function lazyPage(loader: () => Promise<PageModule>) {
+  let Loaded: React.ComponentType | null = null
+  const load = () => loader().then((mod) => { Loaded = mod.default; return mod })
+  const Lazy = lazy(load)
+  const Page = () => (Loaded ? <Loaded /> : <Lazy />)
+  return Object.assign(Page, { preload: load })
+}
+
+const Dashboard      = lazyPage(() => import('@/pages/Dashboard/Dashboard'))
+const Transactions   = lazyPage(() => import('@/pages/Transactions/Transactions'))
+const Recurring      = lazyPage(() => import('@/pages/Recurring/Recurring'))
+const Budgets        = lazyPage(() => import('@/pages/Budgets/Budgets'))
+const Goals          = lazyPage(() => import('@/pages/Goals/Goals'))
+const Documents      = lazyPage(() => import('@/pages/Documents/Documents'))
+const Rules          = lazyPage(() => import('@/pages/Rules/Rules'))
+const Settings       = lazyPage(() => import('@/pages/Settings/Settings'))
+const HabitDashboard = lazyPage(() => import('@/pages/Habits/HabitDashboard'))
+const ManageHabits   = lazyPage(() => import('@/pages/Habits/ManageHabits'))
+const pages = [Dashboard, Transactions, Recurring, Budgets, Goals, Documents, Rules, Settings, HabitDashboard, ManageHabits]
+
+/**
+ * Once the app is up, fetch every page's code and the habit data in the
+ * background, so switching between Finance and Habits (or any page) is
+ * instant instead of showing a spinner the first time.
+ */
+function preloadInBackground() {
+  const run = () => {
+    pages.forEach((page) => { page.preload().catch(() => {}) })
+    const habits = useHabitStore.getState()
+    if (!habits.loaded && !habits.isLoading) void habits.load()
+  }
+  if ('requestIdleCallback' in window) window.requestIdleCallback(run, { timeout: 3000 })
+  else setTimeout(run, 1500)
+}
 
 // ─── AppInitializer ──────────────────────────────────────────────────────────
 // Runs after auth is confirmed. Loads app data and shows a spinner while doing so.
@@ -32,6 +65,11 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     loadState()
   }, [loadState])
+
+  const ready = Boolean(state) && !isLoading
+  useEffect(() => {
+    if (ready) preloadInBackground()
+  }, [ready])
 
   if (isLoading || (!state && !error)) {
     return (
@@ -108,16 +146,16 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            <Route index element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
-            <Route path="transactions"  element={<Suspense fallback={<PageLoader />}><Transactions /></Suspense>} />
-            <Route path="recurring"     element={<Suspense fallback={<PageLoader />}><Recurring /></Suspense>} />
-            <Route path="budgets"       element={<Suspense fallback={<PageLoader />}><Budgets /></Suspense>} />
-            <Route path="goals"         element={<Suspense fallback={<PageLoader />}><Goals /></Suspense>} />
-            <Route path="documents"     element={<Suspense fallback={<PageLoader />}><Documents /></Suspense>} />
-            <Route path="rules"         element={<Suspense fallback={<PageLoader />}><Rules /></Suspense>} />
-            <Route path="settings"      element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
-            <Route path="habits"        element={<Suspense fallback={<PageLoader />}><HabitDashboard /></Suspense>} />
-            <Route path="habits/manage" element={<Suspense fallback={<PageLoader />}><ManageHabits /></Suspense>} />
+            <Route index element={<Dashboard />} />
+            <Route path="transactions"  element={<Transactions />} />
+            <Route path="recurring"     element={<Recurring />} />
+            <Route path="budgets"       element={<Budgets />} />
+            <Route path="goals"         element={<Goals />} />
+            <Route path="documents"     element={<Documents />} />
+            <Route path="rules"         element={<Rules />} />
+            <Route path="settings"      element={<Settings />} />
+            <Route path="habits"        element={<HabitDashboard />} />
+            <Route path="habits/manage" element={<ManageHabits />} />
             <Route path="*"             element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

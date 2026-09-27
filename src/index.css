@@ -49,19 +49,14 @@
     min-width: 0;
   }
 
-  /* Scrollbar styling */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+  /* Scrollbars are hidden everywhere; scrolling still works with touch,
+     trackpad, mouse wheel and keyboard. */
+  * {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
-  ::-webkit-scrollbar-track {
-    @apply bg-transparent;
-  }
-  ::-webkit-scrollbar-thumb {
-    @apply bg-border rounded-full;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground/30;
+  *::-webkit-scrollbar {
+    display: none;
   }
 }
 
