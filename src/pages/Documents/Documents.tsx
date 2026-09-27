@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { Upload, FileText, Trash2, AlertCircle, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -14,6 +14,7 @@ import type { Document } from '@/types'
 export default function Documents() {
   const { state, loadState, removeDocument } = useAppStore()
   const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
 
   const documents = state?.documents ?? []
@@ -116,20 +117,21 @@ export default function Documents() {
                 {uploadError}
               </div>
             )}
-            <label className="cursor-pointer">
-              <Button variant="outline" loading={uploading}>
-                <Upload className="h-4 w-4" aria-hidden="true" />
-                Choose files
-              </Button>
-              <input
-                type="file"
-                multiple
-                accept={SUPPORTED_DOCUMENT_TYPES.join(',')}
-                onChange={handleUpload}
-                className="sr-only"
-                aria-label="Upload document files"
-              />
-            </label>
+            {/* A <button> inside a <label> doesn't forward clicks to the input, so open it directly */}
+            <Button variant="outline" loading={uploading} className="w-full sm:w-auto" onClick={() => fileInputRef.current?.click()}>
+              <Upload className="h-4 w-4" aria-hidden="true" />
+              Choose files
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept={SUPPORTED_DOCUMENT_TYPES.join(',')}
+              onChange={handleUpload}
+              className="sr-only"
+              tabIndex={-1}
+              aria-label="Upload document files"
+            />
           </CardContent>
         </Card>
 
@@ -162,8 +164,8 @@ export default function Documents() {
               </div>
               <ul className="divide-y divide-border" role="list">
                 {documents.map((doc) => (
-                  <li key={doc.id} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/30 group">
-                    <FileText className="h-8 w-8 flex-shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <li key={doc.id} className="flex items-center gap-2 px-4 py-3 hover:bg-muted/30 group sm:gap-3 sm:px-5">
+                    <FileText className="h-7 w-7 flex-shrink-0 text-muted-foreground sm:h-8 sm:w-8" aria-hidden="true" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{doc.filename}</p>
                       <p className="text-xs text-muted-foreground">
@@ -175,7 +177,7 @@ export default function Documents() {
                     </Badge>
                     <button
                       onClick={() => handleOpen(doc)}
-                      className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-violet-600 hover:bg-violet-50 transition-all"
+                      className="h-10 w-10 sm:h-8 sm:w-8 flex flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:text-violet-600 hover:bg-violet-50 transition-all"
                       aria-label={`Open ${doc.filename}`}
                       title="Open"
                     >
@@ -183,7 +185,7 @@ export default function Documents() {
                     </button>
                     <button
                       onClick={() => handleDelete(doc)}
-                      className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 hover:text-red-500 hover:bg-red-50 transition-all"
+                      className="h-10 w-10 sm:h-8 sm:w-8 flex flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 hover:text-red-500 hover:bg-red-50 transition-all"
                       aria-label={`Delete ${doc.filename}`}
                     >
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />

@@ -7,7 +7,8 @@ import { Toaster } from 'sonner'
 
 export function AppLayout() {
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex h-screen h-[100dvh] bg-background overflow-hidden">
+      {/* 100dvh (with 100vh fallback): mobile address bars would otherwise hide the bottom of the app */}
       {/* Desktop sidebar */}
       <Sidebar />
 
@@ -17,7 +18,7 @@ export function AppLayout() {
 
         {/* Page content */}
         <main
-          className="flex-1 overflow-y-auto p-4 lg:p-6 pb-20 lg:pb-6"
+          className="flex-1 overflow-y-auto p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:p-6"
           id="main-content"
           tabIndex={-1}
         >

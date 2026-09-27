@@ -127,7 +127,7 @@ export function AddEntryModal({ open, onClose }: AddEntryModalProps) {
                       key={t}
                       type="button"
                       onClick={() => field.onChange(t)}
-                      className={`flex-1 py-2.5 text-sm font-medium capitalize transition-colors ${
+                      className={`flex-1 px-1 py-2.5 text-sm font-medium leading-tight capitalize transition-colors ${
                         field.value === t
                           ? t === 'expense'
                             ? 'bg-red-50 text-red-700 border-b-2 border-red-500'
@@ -263,7 +263,7 @@ export function AddEntryModal({ open, onClose }: AddEntryModalProps) {
                   />
                 )}
               />
-              <label htmlFor="receipt" className="text-sm font-medium cursor-pointer">
+              <label htmlFor="receipt" className="cursor-pointer py-2 text-sm font-medium">
                 I have a receipt to attach
               </label>
             </div>

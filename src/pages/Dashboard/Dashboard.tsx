@@ -89,14 +89,14 @@ export default function Dashboard() {
       )}
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         {/* Cash surplus */}
         <SummaryCard
           title="Cash surplus"
           icon={<PiggyBank className="h-5 w-5 text-violet-600" aria-hidden="true" />}
           iconBg="bg-violet-50"
         >
-          <p className={`text-2xl font-bold ${cashSurplus >= 0 ? 'text-foreground' : 'text-red-600'}`}>
+          <p className={`text-lg sm:text-2xl font-bold tabular-nums break-words ${cashSurplus >= 0 ? 'text-foreground' : 'text-red-600'}`}>
             {formatCurrency(cashSurplus)}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -110,7 +110,7 @@ export default function Dashboard() {
           icon={<TrendingUp className="h-5 w-5 text-emerald-600" aria-hidden="true" />}
           iconBg="bg-emerald-50"
         >
-          <p className="text-2xl font-bold text-emerald-600">{formatCurrency(income)}</p>
+          <p className="text-lg sm:text-2xl font-bold tabular-nums break-words text-emerald-600">{formatCurrency(income)}</p>
           <p className="mt-1 text-xs text-muted-foreground">
             {data.summary.incomeCount} transaction{data.summary.incomeCount !== 1 ? 's' : ''}
           </p>
@@ -122,7 +122,7 @@ export default function Dashboard() {
           icon={<TrendingDown className="h-5 w-5 text-orange-500" aria-hidden="true" />}
           iconBg="bg-orange-50"
         >
-          <p className="text-2xl font-bold text-orange-500">{formatCurrency(spending)}</p>
+          <p className="text-lg sm:text-2xl font-bold tabular-nums break-words text-orange-500">{formatCurrency(spending)}</p>
           <p className="mt-1 text-xs text-muted-foreground">
             {data.summary.expenseCount} transaction{data.summary.expenseCount !== 1 ? 's' : ''}
           </p>
@@ -134,7 +134,7 @@ export default function Dashboard() {
           icon={<IndianRupee className="h-5 w-5 text-blue-600" aria-hidden="true" />}
           iconBg="bg-blue-50"
         >
-          <p className="text-2xl font-bold text-blue-600">{formatCurrency(investments)}</p>
+          <p className="text-lg sm:text-2xl font-bold tabular-nums break-words text-blue-600">{formatCurrency(investments)}</p>
           <p className="mt-1 text-xs text-muted-foreground">SIPs, EPF/PPF, stocks and deposits</p>
         </SummaryCard>
       </div>
@@ -142,7 +142,7 @@ export default function Dashboard() {
       <Card>
         <CardHeader><CardTitle>Savings summary</CardTitle></CardHeader>
         <CardContent>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-3 sm:gap-4">
             <div>
               <p className="text-xs text-muted-foreground">Savings rate</p>
               <p className="text-xl font-bold text-violet-600">
@@ -320,13 +320,13 @@ function SummaryCard({
 }) {
   return (
     <Card>
-      <CardContent className="pt-5">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">{title}</p>
+      <CardContent className="p-4 sm:p-5 sm:pt-5">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-muted-foreground sm:text-sm">{title}</p>
             <div className="mt-1">{children}</div>
           </div>
-          <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${iconBg}`}>
+          <div className={`hidden h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl sm:flex ${iconBg}`}>
             {icon}
           </div>
         </div>

@@ -20,7 +20,7 @@ const buttonVariants = cva(
         sm: 'h-9 rounded-md px-3 min-h-[36px]',
         lg: 'h-11 rounded-lg px-8 min-h-[44px]',
         icon: 'h-10 w-10 min-h-[44px] min-w-[44px]',
-        'icon-sm': 'h-8 w-8',
+        'icon-sm': 'h-10 w-10 sm:h-8 sm:w-8', // 40px tap target on phones
       },
     },
     defaultVariants: {

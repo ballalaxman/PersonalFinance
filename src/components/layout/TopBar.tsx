@@ -27,24 +27,24 @@ export function TopBar() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-[76px] items-center justify-between gap-2 border-b border-border bg-card px-4 lg:px-6">
+      <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-2 border-b border-border bg-card px-3 sm:px-4 lg:h-[76px] lg:px-6">
         <div className="flex min-w-0 items-center gap-3">
-          {/* Mobile logo */}
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white lg:hidden">
+          {/* Mobile logo; dropped on the narrowest phones so the tabs fit */}
+          <div className="hidden h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white min-[400px]:flex lg:hidden">
             <PiggyBank className="h-4 w-4" aria-hidden="true" />
           </div>
           <WorkspaceTabs />
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-shrink-0 items-center gap-1.5 sm:gap-2">
           <Button variant="default" size="sm" onClick={primary.onClick} aria-label={primary.label}>
             <Plus className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">{primary.label}</span>
           </Button>
 
           {/* User + logout */}
-          <div className="ml-1 flex items-center gap-2 border-l border-border pl-3">
+          <div className="flex items-center gap-2 border-l border-border pl-1.5 sm:ml-1 sm:pl-3">
             {user && (
               <span className="hidden text-xs text-muted-foreground md:block max-w-[120px] truncate" title={user.email}>
                 {user.name || user.email}

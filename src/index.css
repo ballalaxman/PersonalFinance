@@ -43,6 +43,12 @@
     @apply h-full;
   }
 
+  /* Inputs have an intrinsic ~20-character minimum width, which pushes the
+     button in "input + button" rows off narrow screens. Let them shrink. */
+  input, select, textarea {
+    min-width: 0;
+  }
+
   /* Scrollbar styling */
   ::-webkit-scrollbar {
     width: 6px;
@@ -66,6 +72,13 @@
   }
   .scrollbar-none::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Phones: iOS Safari zooms into any focused field under 16px, so fields use 16px there */
+  @media (max-width: 639px) {
+    input:not([type='checkbox']):not([type='radio']), select, textarea {
+      font-size: 16px !important;
+    }
   }
 
   /* Safe area for mobile notch */

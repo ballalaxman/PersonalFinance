@@ -83,7 +83,7 @@ export function ReminderSettings() {
           )}
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="grid gap-2 sm:flex sm:flex-wrap">
           {subscribed ? (
             <Button variant="outline" loading={busy === 'disable'} onClick={() => run('disable')}><BellOff className="h-4 w-4" aria-hidden="true" />Turn off on this device</Button>
           ) : (
