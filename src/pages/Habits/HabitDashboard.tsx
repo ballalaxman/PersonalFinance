@@ -11,6 +11,7 @@ import { addDays, dailyCompletion, weekStart } from '@/utils/habits'
 import { formatDate } from '@/utils/dates'
 import { cn } from '@/utils/cn'
 import type { HabitInput } from '@/services/habits'
+import type { Habit } from '@/types'
 import { HabitFormModal } from './HabitFormModal'
 import { HABIT_COLORS, frequencyLabel } from './habitColors'
 import { useHabits, type HabitWithStats } from './useHabits'
@@ -79,7 +80,7 @@ export default function HabitDashboard() {
         />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
             <Stat icon={<CalendarCheck className="h-5 w-5 text-violet-600" aria-hidden="true" />} bg="bg-violet-50" title="Today" value={`${summary.doneToday} / ${summary.dueCount}`} note={summary.dueCount === 0 ? 'Nothing due today' : summary.doneToday === summary.dueCount ? 'All done. Nice.' : `${summary.dueCount - summary.doneToday} left to do`} />
             <Stat icon={<Flame className="h-5 w-5 text-orange-500" aria-hidden="true" />} bg="bg-orange-50" title="Top streak" value={summary.top ? streakText(summary.top) : '—'} note={summary.top?.stats.currentStreak ? summary.top.habit.name : 'Check in to start one'} />
             <Stat icon={<TrendingUp className="h-5 w-5 text-emerald-600" aria-hidden="true" />} bg="bg-emerald-50" title="30-day completion" value={`${summary.avgRate}%`} note="Average across active habits" />
@@ -104,7 +105,7 @@ export default function HabitDashboard() {
 
           <Card>
             <CardHeader><CardTitle>This week</CardTitle></CardHeader>
-            <CardContent className="overflow-x-auto p-0 pb-2">
+            <CardContent className="p-0 pb-2 sm:overflow-x-auto">
               <WeekGrid items={active} today={today} onToggle={toggle} />
             </CardContent>
           </Card>
@@ -124,11 +125,11 @@ function streakText({ habit, stats }: HabitWithStats): string {
 function Stat({ icon, bg, title, value, note }: { icon: React.ReactNode; bg: string; title: string; value: string; note: React.ReactNode }) {
   return (
     <Card>
-      <CardContent className="pt-5">
+      <CardContent className="p-4 sm:p-5 sm:pt-5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-sm font-medium text-muted-foreground">{title}</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">{value}</p>
+            <p className="text-xs font-medium text-muted-foreground sm:text-sm">{title}</p>
+            <p className="mt-1 text-xl font-bold tabular-nums text-foreground sm:text-2xl">{value}</p>
             <p className="mt-1 truncate text-xs text-muted-foreground">{note}</p>
           </div>
           <div className={cn('hidden h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl sm:flex', bg)}>{icon}</div>
@@ -143,7 +144,7 @@ function TodayRow({ item, onToggle }: { item: HabitWithStats; today: string; onT
   const colors = HABIT_COLORS[habit.color]
   const targetMet = habit.frequency === 'weekly' && !stats.dueToday
   return (
-    <li className="flex items-center gap-3 px-5 py-3">
+    <li className="flex items-center gap-3 px-4 py-3 sm:px-5">
       <button
         type="button"
         onClick={onToggle}
@@ -176,7 +177,37 @@ function WeekGrid({ items, today, onToggle }: { items: HabitWithStats[]; today: 
   const monday = weekStart(today)
   const days = WEEKDAYS.map((label, i) => ({ label, date: addDays(monday, i) }))
   return (
-    <table className="w-full min-w-[560px] text-sm">
+    <>
+    {/* Phones: one block per habit with the seven days full width, no sideways scrolling */}
+    <div className="sm:hidden">
+      <div className="grid grid-cols-7 gap-1.5 px-4 pb-2 text-center text-[11px] text-muted-foreground">
+        {days.map((d) => (
+          <span key={d.date} className={cn(d.date === today && 'font-semibold text-violet-700')}>
+            {d.label.slice(0, 1)}<span className="block tabular-nums">{d.date.slice(8)}</span>
+          </span>
+        ))}
+      </div>
+      <ul role="list" className="divide-y divide-border border-t border-border">
+        {items.map(({ habit, done, stats }) => (
+          <li key={habit.id} className="space-y-2 px-4 py-3">
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="flex min-w-0 items-center gap-2 font-medium">
+                <span className={cn('h-2 w-2 flex-shrink-0 rounded-full', HABIT_COLORS[habit.color].dot)} aria-hidden="true" />
+                <span className="truncate">{habit.name}</span>
+              </span>
+              <span className="flex-shrink-0 text-xs tabular-nums text-muted-foreground">{stats.weekCount}/{habit.frequency === 'weekly' ? habit.targetPerWeek : 7}</span>
+            </div>
+            <div className="grid grid-cols-7 gap-1.5">
+              {days.map((d) => (
+                <DayCell key={d.date} habitName={habit.name} color={habit.color} date={d.date} isDone={done.has(d.date)} future={d.date > today} onToggle={() => onToggle(habit.id, d.date)} className="aspect-square w-full max-h-11" />
+              ))}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+
+    <table className="hidden w-full text-sm sm:table">
       <thead>
         <tr className="text-xs text-muted-foreground">
           <th scope="col" className="px-5 py-2 text-left font-medium">Habit</th>
@@ -185,7 +216,7 @@ function WeekGrid({ items, today, onToggle }: { items: HabitWithStats[]; today: 
               {d.label}<span className="block text-[11px] font-normal tabular-nums">{d.date.slice(8)}</span>
             </th>
           ))}
-          <th scope="col" className="px-5 py-2 text-right font-medium">Week</th>
+          <th scope="col" className="px-4 py-2 text-right font-medium sm:px-5">Week</th>
         </tr>
       </thead>
       <tbody>
@@ -196,34 +227,42 @@ function WeekGrid({ items, today, onToggle }: { items: HabitWithStats[]; today: 
               {habit.name}
             </th>
             {days.map((d) => {
-              const isDone = done.has(d.date)
-              const future = d.date > today
               return (
                 <td key={d.date} className="px-1 py-2 text-center">
-                  <button
-                    type="button"
-                    disabled={future}
-                    onClick={() => onToggle(habit.id, d.date)}
-                    aria-pressed={isDone}
-                    aria-label={`${habit.name}, ${formatDate(d.date, 'EEEE d MMM')}: ${isDone ? 'done' : 'not done'}`}
-                    className={cn(
-                      'mx-auto flex h-8 w-8 items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600',
-                      isDone ? HABIT_COLORS[habit.color].done : 'border-border bg-background hover:bg-muted',
-                      future && 'cursor-not-allowed opacity-30 hover:bg-background'
-                    )}
-                  >
-                    {isDone && <Check className="h-4 w-4" aria-hidden="true" />}
-                  </button>
+                  <DayCell habitName={habit.name} color={habit.color} date={d.date} isDone={done.has(d.date)} future={d.date > today} onToggle={() => onToggle(habit.id, d.date)} className="mx-auto h-8 w-8" />
                 </td>
               )
             })}
-            <td className="px-5 py-2 text-right text-xs tabular-nums text-muted-foreground">
+            <td className="px-4 py-2 text-right text-xs tabular-nums text-muted-foreground sm:px-5">
               {habit.frequency === 'weekly' ? `${stats.weekCount}/${habit.targetPerWeek}` : `${stats.weekCount}/7`}
             </td>
           </tr>
         ))}
       </tbody>
     </table>
+    </>
+  )
+}
+
+function DayCell({ habitName, color, date, isDone, future, onToggle, className }: {
+  habitName: string; color: Habit['color']; date: string; isDone: boolean; future: boolean; onToggle: () => void; className?: string
+}) {
+  return (
+    <button
+      type="button"
+      disabled={future}
+      onClick={onToggle}
+      aria-pressed={isDone}
+      aria-label={`${habitName}, ${formatDate(date, 'EEEE d MMM')}: ${isDone ? 'done' : 'not done'}`}
+      className={cn(
+        'flex items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600',
+        isDone ? HABIT_COLORS[color].done : 'border-border bg-background hover:bg-muted',
+        future && 'cursor-not-allowed opacity-30 hover:bg-background',
+        className
+      )}
+    >
+      {isDone && <Check className="h-4 w-4" aria-hidden="true" />}
+    </button>
   )
 }
 

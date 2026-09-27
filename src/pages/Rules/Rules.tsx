@@ -209,7 +209,7 @@ export default function Rules() {
                     )}
                     <button
                       onClick={() => handleDeleteTag(tag.name)}
-                      className="text-violet-400 hover:text-violet-700 leading-none"
+                      className="-my-1 -mr-1 flex h-7 w-7 items-center justify-center rounded-full text-violet-400 hover:bg-violet-100 hover:text-violet-700 leading-none"
                       aria-label={`Delete tag ${tag.name}`}
                     >
                       <span aria-hidden="true">×</span>

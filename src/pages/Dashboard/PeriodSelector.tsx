@@ -33,12 +33,12 @@ export function PeriodSelector() {
   const isCurrentMonth = selectedMonth >= currentMonth()
 
   return (
-    <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
+    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
       {/* Period dropdown */}
       <select
         value={period}
         onChange={handlePeriodChange}
-        className="h-10 rounded-lg border border-input bg-background px-3 pr-8 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600"
+        className="h-11 w-full rounded-lg border border-input bg-background px-3 pr-8 text-sm text-foreground sm:h-10 sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600"
         aria-label="Select date period"
       >
         {PERIOD_OPTIONS.map((opt) => (
@@ -50,7 +50,7 @@ export function PeriodSelector() {
 
       {/* Month navigator — only shown when specific-month is selected */}
       {period === 'specific-month' && (
-        <div className="flex items-center gap-1">
+        <div className="flex items-center justify-between gap-1 sm:justify-start">
           <button
             onClick={handlePrev}
             className="flex h-10 w-10 items-center justify-center rounded-lg border border-input bg-background text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600 transition-colors"
@@ -59,7 +59,7 @@ export function PeriodSelector() {
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           </button>
 
-          <span className="min-w-[140px] text-center text-sm font-medium text-foreground">
+          <span className="min-w-0 flex-1 text-center sm:min-w-[140px] sm:flex-none text-sm font-medium text-foreground">
             {formatMonthLabel(selectedMonth)}
           </span>
 

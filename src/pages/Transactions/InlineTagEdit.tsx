@@ -96,7 +96,7 @@ export function InlineTagEdit({ transaction }: InlineTagEditProps) {
             {tag}
             <button
               onClick={() => removeTagInline(tag)}
-              className="hover:text-violet-900 leading-none"
+              className="-my-1 -mr-1 flex h-6 w-6 items-center justify-center rounded-full hover:bg-violet-200 hover:text-violet-900 sm:h-auto sm:w-auto sm:m-0 leading-none"
               aria-label={`Remove tag ${tag}`}
             >
               <X className="h-3 w-3" aria-hidden="true" />
@@ -105,7 +105,7 @@ export function InlineTagEdit({ transaction }: InlineTagEditProps) {
         ))}
         <button
           onClick={handleOpen}
-          className="flex h-5 w-5 items-center justify-center rounded-full border border-dashed border-muted-foreground/40 text-muted-foreground hover:border-violet-400 hover:text-violet-600 transition-colors"
+          className="flex h-7 w-7 sm:h-5 sm:w-5 items-center justify-center rounded-full border border-dashed border-muted-foreground/40 text-muted-foreground hover:border-violet-400 hover:text-violet-600 transition-colors"
           aria-label="Add tag"
           title="Add tag"
         >

@@ -116,9 +116,9 @@ export default function Transactions() {
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1">
+      {/* Filters: search on its own row and the three selects side by side on phones */}
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-3">
+        <div className="relative col-span-2 sm:flex-1">
           <Search
             className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
             aria-hidden="true"
@@ -154,6 +154,7 @@ export default function Transactions() {
             ))}
           </SelectContent>
         </Select>
+        <div className="col-span-2 sm:contents">
         <Select value={typeFilter} onValueChange={setTypeFilter}>
           <SelectTrigger className="w-full sm:w-44" aria-label="Filter by type">
             <SelectValue placeholder="All types" />
@@ -165,6 +166,7 @@ export default function Transactions() {
             <SelectItem value="investment">Savings / Investment</SelectItem>
           </SelectContent>
         </Select>
+        </div>
       </div>
 
       {/* Table / List */}
@@ -298,7 +300,7 @@ function TransactionRow({
       </div>
 
       {/* Mobile row */}
-      <div className="lg:hidden px-4 py-3 space-y-2">
+      <div className="lg:hidden px-4 py-3 space-y-1.5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
@@ -311,7 +313,7 @@ function TransactionRow({
               {formatDate(t.date, 'MMM d')} · {t.account}
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-0.5 flex-shrink-0">
             <p
               className={`text-sm font-semibold ${
                 t.type === 'income' ? 'text-emerald-600' : t.type === 'investment' ? 'text-blue-600' : 'text-foreground'
@@ -321,24 +323,26 @@ function TransactionRow({
             </p>
             <button
               onClick={onEdit}
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-violet-600 hover:bg-violet-50"
+              className="h-10 w-10 flex items-center justify-center rounded-lg text-muted-foreground hover:text-violet-600 hover:bg-violet-50"
               aria-label={`Edit ${t.merchant}`}
             >
               <Pencil className="h-4 w-4" aria-hidden="true" />
             </button>
             <button
               onClick={onDelete}
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50"
+              className="h-10 w-10 flex items-center justify-center rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50"
               aria-label={`Delete ${t.merchant}`}
             >
               <span aria-hidden="true" className="text-base">×</span>
             </button>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <InlineCategoryEdit transaction={t} categories={categories} />
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <div className="-ml-2 w-auto max-w-[60%]">
+            <InlineCategoryEdit transaction={t} categories={categories} />
+          </div>
+          <InlineTagEdit transaction={t} />
         </div>
-        <InlineTagEdit transaction={t} />
       </div>
     </li>
   )

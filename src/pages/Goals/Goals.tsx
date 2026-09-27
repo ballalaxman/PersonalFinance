@@ -38,14 +38,15 @@ export default function Goals() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold">Goals</h1>
           <p className="text-sm text-muted-foreground">Track your financial targets</p>
         </div>
-        <Button onClick={() => { setEditTarget(null); setFormOpen(true) }}>
+        <Button className="flex-shrink-0" aria-label="Create goal" onClick={() => { setEditTarget(null); setFormOpen(true) }}>
           <Plus className="h-4 w-4" aria-hidden="true" />
-          Create goal
+          <span className="hidden sm:inline">Create goal</span>
+          <span className="sm:hidden">New</span>
         </Button>
       </div>
 

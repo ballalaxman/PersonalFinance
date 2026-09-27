@@ -78,14 +78,15 @@ export default function Budgets() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold">Budgets</h1>
           <p className="text-sm text-muted-foreground">Monthly spending limits · {formatMonthLabel(month)}</p>
         </div>
-        <Button onClick={() => { setEditTarget(null); setFormOpen(true) }}>
+        <Button className="flex-shrink-0" aria-label="Create budget" onClick={() => { setEditTarget(null); setFormOpen(true) }}>
           <Plus className="h-4 w-4" aria-hidden="true" />
-          Create budget
+          <span className="hidden sm:inline">Create budget</span>
+          <span className="sm:hidden">New</span>
         </Button>
       </div>
 

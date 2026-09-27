@@ -152,7 +152,7 @@ export default function Settings() {
                 {c}
                 <button
                   onClick={() => handleRemoveCategory(c)}
-                  className="text-muted-foreground hover:text-red-500 ml-1"
+                  className="-my-1 -mr-2 ml-0.5 flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-red-50 hover:text-red-500"
                   aria-label={`Remove category ${c}`}
                 >
                   ×
@@ -190,7 +190,7 @@ export default function Settings() {
                 {a}
                 <button
                   onClick={() => handleRemoveAccount(a)}
-                  className="text-muted-foreground hover:text-red-500 ml-1"
+                  className="-my-1 -mr-2 ml-0.5 flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-red-50 hover:text-red-500"
                   aria-label={`Remove account ${a}`}
                 >
                   ×
