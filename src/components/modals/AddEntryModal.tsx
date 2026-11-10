@@ -21,6 +21,7 @@ import {
 import { Checkbox } from '@/components/ui/Checkbox'
 import { transactionSchema, type TransactionFormValues } from '@/schemas/transaction'
 import { transactionsService } from '@/services/transactions'
+import { isDuplicateError } from '@/services/api'
 import { useAppStore } from '@/store/appStore'
 import { today } from '@/utils/dates'
 import { normalizeTags } from '@/utils/fingerprint'
@@ -34,6 +35,7 @@ export function AddEntryModal({ open, onClose }: AddEntryModalProps) {
   const { state, addTransaction, addDocument } = useAppStore()
   const [tagInput, setTagInput] = useState('')
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
+  const [duplicate, setDuplicate] = useState(false)
 
   const {
     register,
@@ -67,24 +69,32 @@ export function AddEntryModal({ open, onClose }: AddEntryModalProps) {
     reset()
     setTagInput('')
     setReceiptFile(null)
+    setDuplicate(false)
     onClose()
   }
 
-  const onSubmit = async (data: TransactionFormValues) => {
+  const save = async (data: TransactionFormValues, allowDuplicate = false) => {
+    setDuplicate(false)
     try {
-      const { transaction, receiptDocument } = await transactionsService.create({
+      const { transaction, receiptDocument, receiptError } = await transactionsService.create({
         ...data,
+        allowDuplicate,
         receiptFile: data.receipt ? receiptFile ?? undefined : undefined,
       })
       addTransaction(transaction)
       if (receiptDocument) addDocument(receiptDocument)
       window.dispatchEvent(new Event('fintrack:transactions-changed'))
-      toast.success('Transaction added')
+      if (receiptError) toast.warning(`Transaction added, but the receipt was not saved (${receiptError}). You can upload it in Documents.`)
+      else if (transaction.category !== data.category) toast.success(`Transaction added. Your rule set the category to "${transaction.category}".`)
+      else toast.success('Transaction added')
       handleClose()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to add transaction')
+      // A look-alike exists: ask instead of refusing, so two real same-day spends can both be saved
+      if (isDuplicateError(err)) setDuplicate(true)
+      else toast.error(err instanceof Error ? err.message : 'Failed to add transaction')
     }
   }
+  const onSubmit = (data: TransactionFormValues) => save(data)
 
   const addTag = () => {
     const tag = tagInput.trim().toLowerCase()
@@ -283,6 +293,15 @@ export function AddEntryModal({ open, onClose }: AddEntryModalProps) {
               </div>
             )}
           </div>
+
+          {duplicate && (
+            <div role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <p>You already have a transaction with the same date, name, amount and account.</p>
+              <Button type="button" variant="outline" size="sm" className="mt-2" loading={isSubmitting} onClick={handleSubmit((data) => save(data, true))}>
+                Save anyway
+              </Button>
+            </div>
+          )}
 
           <DialogFooter className="mt-6 gap-2">
             <Button type="button" variant="outline" onClick={handleClose}>

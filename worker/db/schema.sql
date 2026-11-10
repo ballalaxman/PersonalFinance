@@ -94,6 +94,16 @@ CREATE TABLE IF NOT EXISTS documents (
 
 CREATE INDEX IF NOT EXISTS idx_documents_user ON documents(userId);
 
+-- Receipt file attached to a transaction (at most one). Removing either side removes the link.
+CREATE TABLE IF NOT EXISTS transaction_receipts (
+  transactionId TEXT PRIMARY KEY REFERENCES transactions(id) ON DELETE CASCADE,
+  documentId    TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+  userId        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_transaction_receipts_document ON transaction_receipts(documentId);
+CREATE INDEX IF NOT EXISTS idx_transaction_receipts_user     ON transaction_receipts(userId);
+
 -- Recurring schedules are normalized because each due occurrence needs its own
 -- idempotency, reconciliation, and notification state.
 CREATE TABLE IF NOT EXISTS recurring_schedules (

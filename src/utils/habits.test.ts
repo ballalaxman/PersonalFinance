@@ -87,4 +87,16 @@ describe('dailyCompletion', () => {
     )
     expect(result.map((r) => r.ratio)).toEqual([null, 1, 1, 0])
   })
+
+  it('does not count a weekly habit as missed on its rest days', () => {
+    const habits = [
+      { id: 'd', createdDate: '2026-09-01', frequency: 'daily' as const },
+      { id: 'w', createdDate: '2026-09-01', frequency: 'weekly' as const },
+    ]
+    const done = new Map([['d', set('2026-09-21', '2026-09-22')], ['w', set('2026-09-22')]])
+    const result = dailyCompletion(habits, done, ['2026-09-21', '2026-09-22', '2026-09-23'])
+    expect(result.map((r) => [r.done, r.total, r.ratio])).toEqual([[1, 1, 1], [2, 2, 1], [0, 1, 0]])
+    // Only weekly habits and none done: nothing was expected, not a miss
+    expect(dailyCompletion([habits[1]], done, ['2026-09-21'])[0].ratio).toBeNull()
+  })
 })

@@ -119,16 +119,21 @@ export function habitStats(habit: Pick<Habit, 'frequency' | 'targetPerWeek'>, cr
   }
 }
 
-/** Share of active habits checked each day, for the overview heatmap (null before any habit existed). */
+/**
+ * Share of habits checked each day, for the overview heatmap (null when nothing
+ * was expected that day). A weekly habit is only expected on the days it was
+ * done, so its rest days don't read as misses.
+ */
 export function dailyCompletion(
-  habits: { id: string; createdDate: string }[],
+  habits: { id: string; createdDate: string; frequency?: Habit['frequency'] }[],
   doneByHabit: Map<string, Set<string>>,
   days: string[]
 ): { date: string; ratio: number | null; done: number; total: number }[] {
   return days.map((date) => {
     const existing = habits.filter((h) => h.createdDate <= date)
-    if (!existing.length) return { date, ratio: null, done: 0, total: 0 }
-    const done = existing.filter((h) => doneByHabit.get(h.id)?.has(date)).length
-    return { date, ratio: done / existing.length, done, total: existing.length }
+    const isDone = (h: { id: string }) => Boolean(doneByHabit.get(h.id)?.has(date))
+    const done = existing.filter(isDone).length
+    const total = existing.filter((h) => h.frequency !== 'weekly' || isDone(h)).length
+    return { date, ratio: total ? done / total : null, done, total }
   })
 }

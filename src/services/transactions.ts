@@ -1,4 +1,4 @@
-import { api } from './api'
+import { api, ApiError } from './api'
 import { documentsService } from './documents'
 import type { Document, Transaction, TransactionType } from '@/types'
 
@@ -12,6 +12,8 @@ export interface CreateTransactionInput {
   tags: string[]
   receipt: boolean
   source?: string
+  /** Save even though a look-alike exists (the user was asked and said yes). */
+  allowDuplicate?: boolean
   receiptFile?: File
 }
 
@@ -24,6 +26,7 @@ export interface UpdateTransactionInput {
   account?: string
   tags?: string[]
   receipt?: boolean
+  allowDuplicate?: boolean
 }
 
 export interface TransactionListQuery {
@@ -45,17 +48,25 @@ export const transactionsService = {
     Object.entries(query).forEach(([key, value]) => value !== undefined && key !== 'limit' && params.set(key, String(value)))
     return api.get(`/api/transactions?${params.toString()}`)
   },
-  async create(input: CreateTransactionInput): Promise<{ transaction: Transaction; receiptDocument?: Document }> {
+  /**
+   * Saves the transaction first, then attaches the receipt file to it. If the
+   * upload fails the transaction is kept and `receiptError` says why, so no
+   * stray file is ever left in Documents.
+   */
+  async create(input: CreateTransactionInput): Promise<{ transaction: Transaction; receiptDocument?: Document; receiptError?: string }> {
     const { receiptFile, ...transaction } = input
-    // The transactions endpoint only accepts JSON, so store the receipt in the
-    // document vault first and then record the transaction.
-    if (receiptFile) {
-      const { documents, errors } = await documentsService.upload([receiptFile])
-      if (!documents.length) throw new Error(errors[0] ?? 'Receipt upload failed')
-      const result = await api.post<{ transaction: Transaction }>('/api/transactions', { ...transaction, receipt: true })
-      return { ...result, receiptDocument: documents[0] }
+    if (!receiptFile) return api.post('/api/transactions', transaction)
+
+    // The server marks the transaction as having a receipt once the file is linked.
+    const result = await api.post<{ transaction: Transaction }>('/api/transactions', { ...transaction, receipt: false })
+    try {
+      const { documents } = await documentsService.upload([receiptFile], result.transaction.id)
+      const receiptDocument = documents[0]
+      return { transaction: { ...result.transaction, receipt: true, receiptDocumentId: receiptDocument.id }, receiptDocument }
+    } catch (err) {
+      const reasons = err instanceof ApiError && Array.isArray(err.body.errors) ? err.body.errors : []
+      return { ...result, receiptError: typeof reasons[0] === 'string' ? reasons[0] : err instanceof Error ? err.message : 'Upload failed' }
     }
-    return api.post('/api/transactions', transaction)
   },
 
   async update(id: string, input: UpdateTransactionInput): Promise<{ transaction: Transaction }> {

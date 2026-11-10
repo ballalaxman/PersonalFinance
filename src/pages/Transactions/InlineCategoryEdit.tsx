@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/Select'
 import { transactionsService } from '@/services/transactions'
 import { useAppStore } from '@/store/appStore'
+import { mergeNames } from '@/utils/lists'
 import type { Transaction } from '@/types'
 
 interface InlineCategoryEditProps {
@@ -44,7 +45,7 @@ export function InlineCategoryEdit({ transaction, categories }: InlineCategoryEd
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {categories.map((c) => (
+        {mergeNames(categories, [transaction.category]).map((c) => (
           <SelectItem key={c} value={c}>
             {c}
           </SelectItem>

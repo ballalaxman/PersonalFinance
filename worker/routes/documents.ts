@@ -18,6 +18,17 @@ documentRoutes.post('/', async (c) => {
 
   const db = c.env.DB
   const bucket = c.env.BUCKET
+
+  // Optional: attach the first stored file to one of the user's transactions as its receipt
+  const transactionId = formData.get('transactionId')
+  let receiptFor: string | null = null
+  if (typeof transactionId === 'string' && transactionId) {
+    const owned = await db.prepare('SELECT id FROM transactions WHERE id = ?1 AND userId = ?2')
+      .bind(transactionId, userId).first<{ id: string }>()
+    if (!owned) return c.json({ error: 'Transaction not found' }, 404)
+    receiptFor = owned.id
+  }
+
   const inserted: unknown[] = []
   const errors: string[] = []
 
@@ -45,13 +56,25 @@ documentRoutes.post('/', async (c) => {
         httpMetadata: { contentType: file.type || 'application/octet-stream' },
       })
 
-      await db
+      const insert = db
         .prepare(
           'INSERT INTO documents (id, userId, filename, mimeType, size, objectKey, status, source, createdAt) ' +
           'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)'
         )
         .bind(id, userId, file.name, file.type || 'application/octet-stream', file.size, objectKey, 'stored', 'upload', createdAt)
-        .run()
+
+      if (receiptFor) {
+        // One batch: the file row, its link, and the receipt flag succeed or fail together
+        await db.batch([
+          insert,
+          db.prepare('INSERT OR REPLACE INTO transaction_receipts (transactionId, documentId, userId) VALUES (?1, ?2, ?3)')
+            .bind(receiptFor, id, userId),
+          db.prepare('UPDATE transactions SET receipt = 1 WHERE id = ?1 AND userId = ?2').bind(receiptFor, userId),
+        ])
+        receiptFor = null
+      } else {
+        await insert.run()
+      }
 
       inserted.push({ id, filename: file.name, mimeType: file.type, size: file.size, objectKey, status: 'stored', source: 'upload', createdAt })
     } catch (err) {

@@ -3,7 +3,7 @@ import { z } from 'zod'
 import type { Env } from '../index'
 import { buildFingerprint, normalizeTags } from '../utils/fingerprint'
 import { newId, now } from '../utils/id'
-import { decodeTransactionTags, serializeTransaction } from '../utils/transactions'
+import { decodeTransactionTags, serializeTransaction, TX_COLUMNS } from '../utils/transactions'
 import { applyRuleSet, type RuleRow } from '../utils/rules'
 import { isoDate } from '../utils/validation'
 
@@ -19,6 +19,8 @@ const txSchema = z.object({
   tags:     z.array(z.string()).default([]),
   receipt:  z.boolean().default(false),
   source:   z.string().default('manual'),
+  // Set after the user was told a look-alike exists and chose to save anyway
+  allowDuplicate: z.boolean().default(false),
 })
 
 const updateTxSchema = txSchema.omit({ source: true }).partial().refine(
@@ -110,7 +112,7 @@ transactionRoutes.get('/', async (c) => {
 
   values.push(limit + 1)
   const result = await c.env.DB.prepare(
-    `SELECT * FROM transactions WHERE ${conditions.join(' AND ')} ` +
+    `SELECT ${TX_COLUMNS} FROM transactions t WHERE ${conditions.join(' AND ')} ` +
     'ORDER BY date DESC, createdAt DESC, id DESC LIMIT ?'
   ).bind(...values).all<Record<string, unknown>>()
 
@@ -162,11 +164,13 @@ transactionRoutes.post('/', async (c) => {
     .bind(userId, fingerprint)
     .first<{ id: string }>()
 
-  if (existing) return c.json({ error: 'Duplicate transaction', duplicate: true }, 409)
+  if (existing && !data.allowDuplicate) return c.json({ error: 'Duplicate transaction', duplicate: true }, 409)
 
   const { category, tags } = await applyRules(db, userId, data.merchant, data.category, normalizeTags(data.tags))
   const id = newId()
   const createdAt = now()
+  // A look-alike the user chose to keep gets its own fingerprint, so the unique index allows it
+  const storedFingerprint = existing ? `${fingerprint}|${id}` : fingerprint
 
   await db.batch([
     db.prepare(
@@ -174,7 +178,7 @@ transactionRoutes.post('/', async (c) => {
       'VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)'
     )
     .bind(id, userId, data.date, data.merchant, category, data.amount, data.type, data.account,
-      JSON.stringify(tags), data.receipt ? 1 : 0, data.source, fingerprint, createdAt),
+      JSON.stringify(tags), data.receipt ? 1 : 0, data.source, storedFingerprint, createdAt),
     ...tags.map((tag) => db.prepare('INSERT OR IGNORE INTO tags (userId, name, createdAt) VALUES (?1, ?2, ?3)').bind(userId, tag, createdAt)),
   ])
 
@@ -182,7 +186,7 @@ transactionRoutes.post('/', async (c) => {
     transaction: {
       id, userId, date: data.date, merchant: data.merchant, category,
       amount: data.amount, type: data.type, account: data.account,
-      tags, receipt: data.receipt, source: data.source, fingerprint, createdAt,
+      tags, receipt: data.receipt, source: data.source, fingerprint: storedFingerprint, createdAt,
     }
   }, 201)
 })
@@ -205,7 +209,7 @@ transactionRoutes.patch('/:id', async (c) => {
 
   const db = c.env.DB
   const existing = await db
-    .prepare('SELECT * FROM transactions WHERE id = ?1 AND userId = ?2')
+    .prepare(`SELECT ${TX_COLUMNS} FROM transactions t WHERE id = ?1 AND userId = ?2`)
     .bind(id, userId)
     .first<Record<string, unknown>>()
 
@@ -220,12 +224,20 @@ transactionRoutes.patch('/:id', async (c) => {
   const account = data.account ?? String(existing.account)
   const tags = data.tags !== undefined ? normalizeTags(data.tags) : decodeTransactionTags(existing.tags)
   const receipt = data.receipt ?? Boolean(existing.receipt)
-  const fingerprint = buildFingerprint(date, merchant, amount, account)
+  const base = buildFingerprint(date, merchant, amount, account)
+  const identityUnchanged = base === buildFingerprint(
+    String(existing.date), String(existing.merchant), Number(existing.amount), String(existing.account))
 
-  const duplicate = await db.prepare(
-    'SELECT id FROM transactions WHERE userId = ?1 AND fingerprint = ?2 AND id <> ?3'
-  ).bind(userId, fingerprint, id).first<{ id: string }>()
-  if (duplicate) return c.json({ error: 'Duplicate transaction', duplicate: true }, 409)
+  // Editing only the category, tags or type keeps the stored fingerprint, so a
+  // look-alike the user chose to keep is not flagged again on every edit.
+  let fingerprint = identityUnchanged ? String(existing.fingerprint) : base
+  if (!identityUnchanged) {
+    const duplicate = await db.prepare(
+      'SELECT id FROM transactions WHERE userId = ?1 AND fingerprint = ?2 AND id <> ?3'
+    ).bind(userId, base, id).first<{ id: string }>()
+    if (duplicate && !data.allowDuplicate) return c.json({ error: 'Duplicate transaction', duplicate: true }, 409)
+    if (duplicate) fingerprint = `${base}|${id}`
+  }
 
   try {
     await db.batch([

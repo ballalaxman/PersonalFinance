@@ -23,7 +23,9 @@
     "icons": "node scripts/generate-icons.mjs",
     "vapid:generate": "node scripts/generate-vapid-keys.mjs",
     "db:migrate:reminders": "wrangler d1 execute fintrack-db --local --file=worker/db/migrations/0005_reminders.sql",
-    "db:migrate:reminders:remote": "wrangler d1 execute fintrack-db --remote --file=worker/db/migrations/0005_reminders.sql"
+    "db:migrate:reminders:remote": "wrangler d1 execute fintrack-db --remote --file=worker/db/migrations/0005_reminders.sql",
+    "db:migrate:receipts": "wrangler d1 execute fintrack-db --local --file=worker/db/migrations/0006_receipt_links.sql",
+    "db:migrate:receipts:remote": "wrangler d1 execute fintrack-db --remote --file=worker/db/migrations/0006_receipt_links.sql"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

@@ -146,6 +146,8 @@ npm run db:migrate:month-filtering:remote # Add the production month-pagination 
 npm run db:migrate:habits # Add the habit tables locally
 npm run db:migrate:habits:remote # Add the habit tables in production
 npm run db:migrate:reminders:remote # Add the reminder log table in production
+npm run db:migrate:receipts # Add the receipt link table locally
+npm run db:migrate:receipts:remote # Add the receipt link table in production
 npm run icons        # Regenerate favicon and PWA icons from scripts/generate-icons.mjs
 npm run deploy       # Deploy with Wrangler
 ```

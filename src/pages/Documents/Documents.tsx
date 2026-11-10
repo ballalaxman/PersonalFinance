@@ -53,16 +53,9 @@ export default function Documents() {
   }
 
   const handleOpen = async (doc: Document) => {
-    // Open the tab synchronously (inside the click) so popup blockers allow it, then fill it.
-    const tab = window.open('', '_blank')
     try {
-      const blob = await documentsService.download(doc.id)
-      const url = URL.createObjectURL(blob)
-      if (tab) tab.location.href = url
-      else window.location.assign(url)
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+      await documentsService.open(doc.id)
     } catch (err) {
-      tab?.close()
       toast.error(err instanceof Error ? err.message : 'Failed to open document')
     }
   }

@@ -22,6 +22,8 @@ import { formatCurrency } from '@/utils/currency'
 import { computeCashFlow } from '@/utils/cashflow'
 import type { Transaction } from '@/types'
 import { transactionsService, type TransactionListQuery, type TransactionTotals } from '@/services/transactions'
+import { documentsService } from '@/services/documents'
+import { mergeNames } from '@/utils/lists'
 
 // Last totals per filter set, so coming back to the page shows real figures instead of ₹0.00 while it reloads
 const totalsCache = new Map<string, TransactionTotals>()
@@ -43,8 +45,10 @@ export default function Transactions() {
   // Same period resolution as the Dashboard, so the shared selector means the same thing on both pages
   const period = state?.settings.selectedPeriod ?? 'this-month'
   const month = state?.settings.selectedMonth ?? currentMonth()
+  const searching = Boolean(search.trim())
   const query = useMemo<TransactionListQuery>(() => {
-    const range = resolveDashboardRange(period, month)
+    // Typing in the search box looks through every date, not only the chosen period
+    const range = search.trim() ? {} : resolveDashboardRange(period, month)
     return {
       ...range,
       search: search.trim() || undefined,
@@ -76,9 +80,15 @@ export default function Transactions() {
     return () => window.removeEventListener('fintrack:transactions-changed', refresh)
   }, [])
 
-  const allTransactions = state?.transactions ?? []
+  const allTransactions = useMemo(() => state?.transactions ?? [], [state?.transactions])
   const categories = state?.settings.categories ?? []
-  const accounts = state?.settings.accounts ?? []
+  // Filters also offer names that were removed from Settings but are still on transactions
+  const filterCategories = useMemo(
+    () => mergeNames(state?.settings.categories ?? [], state?.usedCategories ?? [], allTransactions.map((t) => t.category)),
+    [state?.settings.categories, state?.usedCategories, allTransactions])
+  const filterAccounts = useMemo(
+    () => mergeNames(state?.settings.accounts ?? [], state?.usedAccounts ?? [], allTransactions.map((t) => t.account)),
+    [state?.settings.accounts, state?.usedAccounts, allTransactions])
 
   const filtered = allTransactions
   const view = totals ?? { count: 0, income: 0, expense: 0, investment: 0 }
@@ -94,7 +104,7 @@ export default function Transactions() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Transactions</h1>
-          <p className="text-sm text-muted-foreground">{totals ? `${totals.count} records` : 'Loading…'}</p>
+          <p className="text-sm text-muted-foreground">{totals ? `${totals.count} ${searching ? 'found in all dates' : 'records'}` : 'Loading…'}</p>
         </div>
         <PeriodSelector />
       </div>
@@ -123,9 +133,10 @@ export default function Transactions() {
         </div>
       )}
 
-      {/* Filters: search on its own row and the three selects side by side on phones */}
-      <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-3">
-        <div className="relative col-span-2 sm:flex-1">
+      {/* Filters: search on its own row and the three selects side by side on phones.
+          From sm up, one row where the selects keep their own width and search takes the rest. */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:gap-3">
+        <div className="relative col-span-2 sm:col-span-1">
           <Search
             className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
             aria-hidden="true"
@@ -145,7 +156,7 @@ export default function Transactions() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All accounts</SelectItem>
-            {accounts.map((a) => (
+            {filterAccounts.map((a) => (
               <SelectItem key={a} value={a}>{a}</SelectItem>
             ))}
           </SelectContent>
@@ -156,7 +167,7 @@ export default function Transactions() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All categories</SelectItem>
-            {categories.map((c) => (
+            {filterCategories.map((c) => (
               <SelectItem key={c} value={c}>{c}</SelectItem>
             ))}
           </SelectContent>
@@ -265,9 +276,7 @@ function TransactionRow({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <p className="text-sm font-medium truncate">{t.merchant}</p>
-            {t.receipt && (
-              <Receipt className="h-3.5 w-3.5 flex-shrink-0 text-violet-500" aria-label="Has receipt" />
-            )}
+            <ReceiptMark transaction={t} />
           </div>
           <p className="text-xs text-muted-foreground">{formatDate(t.date)}</p>
         </div>
@@ -312,9 +321,7 @@ function TransactionRow({
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <p className="text-sm font-medium truncate">{t.merchant}</p>
-              {t.receipt && (
-                <Receipt className="h-3 w-3 flex-shrink-0 text-violet-500" aria-label="Has receipt" />
-              )}
+              <ReceiptMark transaction={t} />
             </div>
             <p className="text-xs text-muted-foreground">
               {formatDate(t.date, 'MMM d')} · {t.account}
@@ -352,5 +359,23 @@ function TransactionRow({
         </div>
       </div>
     </li>
+  )
+}
+
+/** Receipt icon; a button that opens the file when one is attached to the transaction. */
+function ReceiptMark({ transaction: t }: { transaction: Transaction }) {
+  if (!t.receipt) return null
+  const documentId = t.receiptDocumentId
+  if (!documentId) return <Receipt className="h-3.5 w-3.5 flex-shrink-0 text-violet-500" aria-label="Has receipt" />
+  return (
+    <button
+      type="button"
+      title="Open receipt"
+      aria-label={`Open receipt for ${t.merchant}`}
+      onClick={() => documentsService.open(documentId).catch((err) => toast.error(err instanceof Error ? err.message : 'Could not open the receipt'))}
+      className="-m-1.5 flex-shrink-0 rounded-md p-1.5 text-violet-600 hover:bg-violet-50 hover:text-violet-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600"
+    >
+      <Receipt className="h-3.5 w-3.5" aria-hidden="true" />
+    </button>
   )
 }

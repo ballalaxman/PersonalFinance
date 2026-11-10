@@ -272,7 +272,7 @@ function Heatmap({ items, today }: { items: HabitWithStats[]; today: string }) {
   const start = addDays(weekStart(today), -77)
   const days = Array.from({ length: 84 }, (_, i) => addDays(start, i))
   const cells = dailyCompletion(
-    items.map((i) => ({ id: i.habit.id, createdDate: i.createdDate })),
+    items.map((i) => ({ id: i.habit.id, createdDate: i.createdDate, frequency: i.habit.frequency })),
     new Map(items.map((i) => [i.habit.id, i.done])),
     days,
   )
@@ -291,7 +291,7 @@ function Heatmap({ items, today }: { items: HabitWithStats[]; today: string }) {
           return (
             <div
               key={cell.date}
-              title={future ? undefined : `${formatDate(cell.date, 'd MMM')}: ${cell.total ? `${cell.done} of ${cell.total} habits` : 'no habits yet'}`}
+              title={future ? undefined : `${formatDate(cell.date, 'd MMM')}: ${cell.total ? `${cell.done} of ${cell.total} habits` : 'nothing to do'}`}
               className={cn('aspect-square w-full max-w-[18px] rounded-[3px]', future ? 'bg-transparent' : HEAT[level(cell.ratio)], cell.date === today && 'ring-1 ring-foreground/60')}
             />
           )

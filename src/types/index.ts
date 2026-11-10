@@ -13,6 +13,8 @@ export interface Transaction {
   account: string
   tags: string[]
   receipt: boolean
+  /** Id of the receipt file in Documents, when one was attached */
+  receiptDocumentId?: string | null
   source: TransactionSource
   fingerprint: string
   createdAt: string
@@ -132,6 +134,9 @@ export interface AppState {
   recurringSchedules: RecurringSchedule[]
   recurringOccurrences: RecurringOccurrence[]
   pendingRecurringCount: number
+  /** Every category / account that any transaction uses, including ones removed from Settings */
+  usedCategories?: string[]
+  usedAccounts?: string[]
 }
 
 // ─── Habits ───────────────────────────────────────────────────────────────────

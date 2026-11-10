@@ -93,7 +93,7 @@ export function ReminderSettings() {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <HourSelect id="bill-reminder-hour" label="Bill reminders" value={settings?.reminderHour ?? 9} onChange={(v) => saveHour('reminderHour', v)} />
+          <HourSelect id="bill-reminder-hour" label="Bill reminders" value={settings?.reminderHour === undefined ? 9 : settings.reminderHour} onChange={(v) => saveHour('reminderHour', v)} />
           <HourSelect id="habit-reminder-hour" label="Habit nudge" value={settings?.habitReminderHour === undefined ? 20 : settings.habitReminderHour} onChange={(v) => saveHour('habitReminderHour', v)} />
         </div>
         <p className="text-xs text-muted-foreground">

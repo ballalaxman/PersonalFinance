@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
-import { serializeTransaction } from '../utils/transactions'
+import { serializeTransaction, TX_COLUMNS } from '../utils/transactions'
 
 export const dashboardRoutes = new Hono<{ Bindings: Env }>()
 
@@ -36,7 +36,7 @@ dashboardRoutes.get('/', async (c) => {
       `SELECT category, SUM(amount) AS amount FROM transactions WHERE ${where} AND type = 'expense' GROUP BY category ORDER BY amount DESC`
     ).bind(...bindings).all<Record<string, unknown>>(),
     c.env.DB.prepare(
-      `SELECT * FROM transactions WHERE ${where} ORDER BY date DESC, createdAt DESC, id DESC LIMIT 5`
+      `SELECT ${TX_COLUMNS} FROM transactions t WHERE ${where} ORDER BY date DESC, createdAt DESC, id DESC LIMIT 5`
     ).bind(...bindings).all<Record<string, unknown>>(),
   ])
 

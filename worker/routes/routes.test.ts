@@ -6,6 +6,7 @@ import { transactionRoutes } from './transactions'
 import { preferencesRoutes } from './preferences'
 import { habitRoutes } from './habits'
 import { pushRoutes } from './push'
+import { documentRoutes } from './documents'
 
 interface Executed { sql: string; args: unknown[] }
 
@@ -176,5 +177,79 @@ describe('push subscriptions', () => {
     const { db } = fakeDb()
     const request = appWith('/api/push', pushRoutes as never, db)
     expect((await request('/api/push/test', { method: 'POST' })).status).toBe(503)
+  })
+})
+
+describe('look-alike transactions', () => {
+  const json = (body: unknown) => ({ body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } })
+  const tea = { date: '2026-09-01', merchant: 'Tea Stall', category: 'Dining', amount: 20, type: 'expense', account: 'Cash' }
+  const baseFingerprint = '2026-09-01|tea stall|20.00|cash'
+
+  it('refuses a look-alike until the user chooses to save anyway', async () => {
+    const { db, executed } = fakeDb({ 'SELECT id FROM transactions WHERE userId': { id: 't0' } })
+    const request = appWith('/api/transactions', transactionRoutes as never, db)
+
+    const refused = await request('/api/transactions', { method: 'POST', ...json(tea) })
+    expect(refused.status).toBe(409)
+    expect(await refused.json()).toMatchObject({ duplicate: true })
+    expect(executed.some((e) => e.sql.startsWith('INSERT INTO transactions'))).toBe(false)
+
+    const saved = await request('/api/transactions', { method: 'POST', ...json({ ...tea, allowDuplicate: true }) })
+    expect(saved.status).toBe(201)
+    const stored = executed.find((e) => e.sql.startsWith('INSERT INTO transactions'))?.args[11] as string
+    expect(stored.startsWith(`${baseFingerprint}|`)).toBe(true)
+  })
+
+  it('keeps the stored fingerprint when only the category changes', async () => {
+    const kept = `${baseFingerprint}|t1`
+    const { db, executed } = fakeDb({
+      'FROM transactions t WHERE id': { id: 't1', ...tea, tags: '[]', receipt: 0, fingerprint: kept },
+      'AND id <>': { id: 't0' },
+    })
+    const request = appWith('/api/transactions', transactionRoutes as never, db)
+    const res = await request('/api/transactions/t1', { method: 'PATCH', ...json({ category: 'Groceries' }) })
+    expect(res.status).toBe(200)
+    expect(executed.find((e) => e.sql.startsWith('UPDATE transactions'))?.args[8]).toBe(kept)
+  })
+
+  it('asks again when an edit turns a transaction into a look-alike', async () => {
+    const { db } = fakeDb({
+      'FROM transactions t WHERE id': { id: 't1', ...tea, amount: 30, tags: '[]', receipt: 0, fingerprint: 'x' },
+      'AND id <>': { id: 't0' },
+    })
+    const request = appWith('/api/transactions', transactionRoutes as never, db)
+    expect((await request('/api/transactions/t1', { method: 'PATCH', ...json({ amount: 20 }) })).status).toBe(409)
+    expect((await request('/api/transactions/t1', { method: 'PATCH', ...json({ amount: 20, allowDuplicate: true }) })).status).toBe(200)
+  })
+})
+
+describe('receipt upload', () => {
+  const upload = (db: unknown, transactionId: string) => {
+    const stored: string[] = []
+    const bucket = { put: async (key: string) => { stored.push(key) }, delete: async () => {} }
+    const app = new Hono()
+    app.use('*', async (c, next) => { c.set('user' as never, { id: 'user-1' } as never); await next() })
+    app.route('/api/documents', documentRoutes as never)
+    const form = new FormData()
+    form.append('files', new File(['x'], 'bill.pdf', { type: 'application/pdf' }))
+    form.append('transactionId', transactionId)
+    return { stored, res: app.request('/api/documents', { method: 'POST', body: form }, { DB: db, BUCKET: bucket } as never) }
+  }
+
+  it('stores nothing when the transaction is not the user\'s', async () => {
+    const { db } = fakeDb()
+    const { res, stored } = upload(db, 'someone-elses')
+    expect((await res).status).toBe(404)
+    expect(stored).toEqual([])
+  })
+
+  it('links the file to the transaction and marks it as having a receipt', async () => {
+    const { db, executed } = fakeDb({ 'SELECT id FROM transactions WHERE id': { id: 't1' } })
+    const { res } = upload(db, 't1')
+    expect((await res).status).toBe(201)
+    const link = executed.find((e) => e.sql.includes('INTO transaction_receipts'))
+    expect(link?.args[0]).toBe('t1')
+    expect(link?.args[2]).toBe('user-1')
+    expect(executed.some((e) => e.sql.startsWith('UPDATE transactions SET receipt = 1'))).toBe(true)
   })
 })

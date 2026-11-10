@@ -4,6 +4,18 @@ import { now } from '../utils/id'
 
 export const tagRoutes = new Hono<{ Bindings: Env }>()
 
+// GET /api/tags — every tag with how many of the user's transactions use it
+tagRoutes.get('/', async (c) => {
+  const { id: userId } = c.get('user' as never) as { id: string }
+  const rows = await c.env.DB.prepare(
+    'SELECT g.name, g.createdAt, (' +
+    "SELECT COUNT(*) FROM transactions x, json_each(CASE WHEN json_valid(x.tags) THEN x.tags ELSE '[]' END) j " +
+    'WHERE x.userId = g.userId AND j.value = g.name' +
+    ') AS usage FROM tags g WHERE g.userId = ?1 ORDER BY g.name ASC'
+  ).bind(userId).all<{ name: string; createdAt: string; usage: number }>()
+  return c.json({ tags: (rows.results ?? []).map((r) => ({ ...r, usage: Number(r.usage ?? 0) })) })
+})
+
 // POST /api/tags
 tagRoutes.post('/', async (c) => {
   const { id: userId } = c.get('user' as never) as { id: string }

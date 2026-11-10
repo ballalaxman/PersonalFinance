@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Plus, Edit2, Trash2, Tag, BookOpen } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -21,9 +21,17 @@ export default function Rules() {
   const rules = state?.rules ?? []
   const tags = state?.tags ?? []
 
-  // Count tag usage across transactions
-  const tagUsage = (tagName: string) =>
-    (state?.transactions ?? []).filter((t) => t.tags.includes(tagName)).length
+  // Counts come from the server: the transactions held in memory are only one page.
+  // null until loaded (or if loading failed).
+  const [usage, setUsage] = useState<Record<string, number> | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    api.get<{ tags: { name: string; usage: number }[] }>('/api/tags')
+      .then(({ tags: counted }) => { if (!cancelled) setUsage(Object.fromEntries(counted.map((t) => [t.name, t.usage]))) })
+      .catch(() => { /* counts stay unknown; deleting still asks first */ })
+    return () => { cancelled = true }
+  }, [])
+  const tagUsage = (tagName: string) => usage?.[tagName] ?? 0
 
   const handleSaveRule = async (rule: Rule) => {
     const isEdit = rules.some((r) => r.id === rule.id)
@@ -85,13 +93,13 @@ export default function Rules() {
   }
 
   const handleDeleteTag = async (name: string) => {
-    const usage = tagUsage(name)
-    if (usage > 0) {
-      const confirmed = window.confirm(
-        `This tag is used by ${usage} transaction${usage !== 1 ? 's' : ''}. Remove it from all of them and delete the tag?`
-      )
-      if (!confirmed) return
-    }
+    const used = tagUsage(name)
+    const question = usage === null
+      ? `Delete the tag "${name}"? It will also be removed from any transactions that use it.`
+      : used > 0
+        ? `This tag is used by ${used} transaction${used !== 1 ? 's' : ''}. Remove it from all of them and delete the tag?`
+        : null
+    if (question && !window.confirm(question)) return
     try {
       await api.delete(`/api/tags/${encodeURIComponent(name)}`)
       removeTag(name)
@@ -195,16 +203,16 @@ export default function Rules() {
           ) : (
             <div className="flex flex-wrap gap-2">
               {tags.map((tag) => {
-                const usage = tagUsage(tag.name)
+                const used = tagUsage(tag.name)
                 return (
                   <div
                     key={tag.name}
                     className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 border border-violet-200 pl-3 pr-2 py-1"
                   >
                     <span className="text-sm font-medium text-violet-700">{tag.name}</span>
-                    {usage > 0 && (
+                    {used > 0 && (
                       <span className="text-xs text-violet-500 bg-violet-100 rounded-full px-1.5 py-0.5">
-                        {usage}
+                        {used}
                       </span>
                     )}
                     <button

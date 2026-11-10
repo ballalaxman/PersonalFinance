@@ -8,6 +8,19 @@ import { getAuthToken } from '@/store/authStore'
 
 const BASE = ''
 
+/** A failed request: keeps the HTTP status and the server's JSON body so callers can react to specific cases. */
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number, readonly body: Record<string, unknown> = {}) {
+    super(message)
+    this.name = 'ApiError'
+  }
+}
+
+/** True when the server refused a transaction because a look-alike already exists. */
+export function isDuplicateError(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 409 && err.body.duplicate === true
+}
+
 async function request<T>(
   path: string,
   options: RequestInit & { headers?: Record<string, string> } = {}
@@ -42,13 +55,15 @@ async function request<T>(
     }
 
     let message = `HTTP ${res.status}`
+    let body: Record<string, unknown> = {}
     try {
-      const body = await res.json() as { error?: string; message?: string }
-      message = body.error ?? body.message ?? message
+      body = await res.json() as Record<string, unknown>
+      if (typeof body.error === 'string') message = body.error
+      else if (typeof body.message === 'string') message = body.message
     } catch {
       // ignore parse error
     }
-    throw new Error(message)
+    throw new ApiError(message, res.status, body)
   }
 
   // 204 No Content

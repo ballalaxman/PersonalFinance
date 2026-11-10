@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
-import { serializeTransaction } from '../utils/transactions'
+import { serializeTransaction, TX_COLUMNS } from '../utils/transactions'
 import { getSettings, initEmptyState } from '../utils/settings'
 import { migrateLegacyRecurringSettings } from '../utils/legacyMigration'
 
@@ -13,9 +13,9 @@ stateRoutes.get('/', async (c) => {
   const db = c.env.DB
   await migrateLegacyRecurringSettings(db, userId)
 
-  const [txResult, tagResult, ruleResult, docResult, scheduleResult, occurrenceResult, settings] = await Promise.all([
+  const [txResult, tagResult, ruleResult, docResult, scheduleResult, occurrenceResult, settings, usedCategories, usedAccounts] = await Promise.all([
     db
-      .prepare('SELECT * FROM transactions WHERE userId = ?1 ORDER BY date DESC, createdAt DESC LIMIT 50')
+      .prepare(`SELECT ${TX_COLUMNS} FROM transactions t WHERE userId = ?1 ORDER BY date DESC, createdAt DESC LIMIT 50`)
       .bind(userId)
       .all<Record<string, unknown>>(),
     db
@@ -39,6 +39,9 @@ stateRoutes.get('/', async (c) => {
       .bind(userId)
       .all<Record<string, unknown>>(),
     getSettings(db, userId),
+    // Names still used by transactions, so ones removed from Settings stay filterable
+    db.prepare('SELECT DISTINCT category AS name FROM transactions WHERE userId = ?1').bind(userId).all<{ name: string }>(),
+    db.prepare('SELECT DISTINCT account AS name FROM transactions WHERE userId = ?1').bind(userId).all<{ name: string }>(),
   ])
 
   const transactions = (txResult.results ?? []).map(serializeTransaction)
@@ -57,6 +60,8 @@ stateRoutes.get('/', async (c) => {
     recurringSchedules: (scheduleResult.results ?? []).map((s) => ({ ...s, active: Boolean(s.active) })),
     recurringOccurrences: occurrenceResult.results ?? [],
     pendingRecurringCount: (occurrenceResult.results ?? []).length,
+    usedCategories: (usedCategories.results ?? []).map((r) => r.name),
+    usedAccounts: (usedAccounts.results ?? []).map((r) => r.name),
   })
 })
 
@@ -87,6 +92,7 @@ stateRoutes.delete('/', async (c) => {
   // Delete all this user's D1 records
   // CASCADE on FK handles child rows, but we delete explicitly for clarity
   await db.batch([
+    db.prepare('DELETE FROM transaction_receipts  WHERE userId = ?1').bind(userId),
     db.prepare('DELETE FROM reminder_log          WHERE userId = ?1').bind(userId),
     db.prepare('DELETE FROM habit_logs            WHERE userId = ?1').bind(userId),
     db.prepare('DELETE FROM habits                WHERE userId = ?1').bind(userId),
